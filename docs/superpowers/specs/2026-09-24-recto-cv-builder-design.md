@@ -528,7 +528,8 @@ src/io/files.js             open/save/download, File System Access
 src/io/storage.js           localStorage docs, IndexedDB fonts, photo downscale
 src/ui/dom.js  src/ui/i18n.js  src/ui/editor.js  src/ui/canvas.js  src/ui/handles.js  src/ui/decor-tools.js
 src/ui/inspector.js  src/ui/panels.js  src/ui/gallery.js  src/ui/topbar.js
-styles/app.css  styles/cv.css
+styles/app.css  styles/cv.css  styles/editor.css  styles/canvas.css  styles/inspector.css
+src/model/separators.js     shared visible separator strings (renderer + ATS text)
 locales/en.json
 templates/index.json  templates/<id>.json (8)
 samples/sample.cv.json

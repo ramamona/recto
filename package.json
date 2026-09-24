@@ -1,0 +1,14 @@
+{
+  "name": "recto",
+  "version": "0.1.0",
+  "description": "Text-first CV builder with a live paged canvas, preflight checks and ATS-safe PDF output. Zero dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "bin": { "recto": "cli/recto.js" },
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node --test",
+    "smoke": "node scripts/smoke.js"
+  }
+}
