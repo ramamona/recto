@@ -4,11 +4,32 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Recto</title>
+  <meta name="description" content="Recto — a text-first CV builder with a live paged canvas, preflight checks and ATS-safe PDFs. Runs locally, no accounts.">
+  <title>Recto — CV builder</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="stylesheet" href="styles/editor.css">
+  <link rel="stylesheet" href="styles/canvas.css">
+  <link rel="stylesheet" href="styles/inspector.css">
   <style id="recto-page"></style>
   <script type="module" src="src/main.js"></script>
 </head>
 <body>
-  <div id="app"></div>
+  <div class="app" id="app">
+    <header class="app-top" id="topbar"></header>
+    <nav class="app-tabs ui-tabs" id="apptabs" role="tablist" aria-label="Views"></nav>
+    <main class="app-main" id="main">
+      <section class="app-pane app-pane--editor" id="editor" aria-label="Source"></section>
+      <div class="app-splitter" data-split="editor" role="separator" aria-orientation="vertical" aria-label="Resize source pane" tabindex="0"></div>
+      <section class="app-pane app-pane--canvas" id="canvas" aria-label="Pages"></section>
+      <div class="app-splitter" data-split="side" role="separator" aria-orientation="vertical" aria-label="Resize side pane" tabindex="0"></div>
+      <aside class="app-pane app-side" id="side" aria-label="Design and checks">
+        <div class="app-side__inspector" id="inspector"></div>
+        <div class="app-side__panels" id="panels"></div>
+      </aside>
+    </main>
+  </div>
+  <div id="dialogs"></div>
+  <div class="ui-toasts" id="toasts" role="status" aria-live="polite"></div>
 </body>
 </html>

@@ -236,3 +236,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .app-top, .app-tabs, .app-splitter, .app-side, .app-pane--editor, .ui-toasts, .ui-dialog, .no-print { display: none !important; }
   .app, .app-main, .app-pane--canvas { display: block !important; height: auto !important; background: none !important; overflow: visible !important; }
 }
+
+/* Side pane regions (inspector above, check/ATS panels below) */
+.app-side__inspector { min-height: 0; display: flex; flex-direction: column; }
+.app-side__panels { min-height: 0; max-height: 45vh; display: flex; flex-direction: column; border-top: 1px solid var(--ui-border); }
