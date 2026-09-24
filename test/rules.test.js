@@ -7,7 +7,7 @@ import { defaultLayout, applyLayoutOps } from '../src/model/layout.js'
 import { applyContentEdits } from '../src/model/edits.js'
 
 const NOW = new Date(2026, 8, 15)
-const EN = JSON.parse(readFileSync(new URL('../locales/_parts/preflight.json', import.meta.url), 'utf8'))
+const EN = JSON.parse(readFileSync(new URL('../locales/en.json', import.meta.url), 'utf8'))
 const SAMPLE = JSON.parse(readFileSync(new URL('../samples/sample.cv.json', import.meta.url), 'utf8'))
 const report = (o = {}) => ({ pageCount: 1, targetPages: 1, lastPageFill: 0.6, flags: [], textStyles: [], fontsMissing: [], pages: [{ firstText: '', lastText: '', columnsWithText: ['main'] }], ...o })
 const layoutWith = ops => applyLayoutOps(defaultLayout(), ops)

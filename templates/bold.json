@@ -1,0 +1,33 @@
+{
+  "id": "bold",
+  "name": "Bold",
+  "description": "Dark full-height sidebar with light text, heavy geometric type and a warm accent.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 16, "right": 16, "bottom": 16, "left": 14 } },
+    "grid": {
+      "columns": [
+        { "id": "side", "width": 1, "bg": "#111827", "bleed": true, "textColor": "#f9fafb", "mutedColor": "#cbd5e1", "accentColor": "#fbbf24" },
+        { "id": "main", "width": 2.2 }
+      ],
+      "gutter": 12, "headerSpan": "main", "readingOrder": ["main", "side"]
+    },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "geometric", "fontHeading": "geometric",
+      "sizeName": 30, "sizeSection": 11, "sizeEntry": 10.5, "sizeBody": 9.5, "sizeSmall": 8.5,
+      "lineHeight": 1.36, "gapParagraph": 1.2, "gapEntry": 3.2, "gapSection": 6,
+      "colorText": "#111827", "colorMuted": "#4b5563", "colorAccent": "#c2410c", "colorRule": "#e5e7eb",
+      "colorHeading": "accent", "headingCase": "upper", "headingLetterSpacing": 0.08, "headingWeight": 800,
+      "headingRule": "bar", "nameCase": "upper", "nameWeight": 800, "bulletChar": "▪", "dateStyle": "right", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "*": { "column": "main" },
+    "skills": { "column": "side", "variant": "tags" },
+    "languages": { "column": "side", "variant": "grid" },
+    "certifications": { "column": "side" },
+    "education": { "column": "side" }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "academic",
+  "name": "Academic",
+  "description": "One serif column with dates in the left margin, the classic CV layout for research and teaching.",
+  "targetPages": 2,
+  "layout": {
+    "page": { "margins": { "top": 20, "right": 20, "bottom": 18, "left": 20 } },
+    "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "old-style", "fontHeading": "old-style",
+      "sizeName": 22, "sizeSection": 11.5, "sizeEntry": 10.5, "sizeBody": 10, "sizeSmall": 9,
+      "lineHeight": 1.35, "gapParagraph": 1.1, "gapEntry": 3, "gapSection": 5.5,
+      "colorText": "#1a1a1a", "colorMuted": "#4a4a4a", "colorAccent": "#7f1d1d", "colorRule": "#c9b8b8",
+      "colorHeading": "accent", "headingCase": "none", "headingLetterSpacing": 0, "headingWeight": 700,
+      "headingRule": "above", "nameWeight": 700, "bulletChar": "–", "dateStyle": "left", "linkStyle": "underline"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {}
+}

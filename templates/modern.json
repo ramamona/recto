@@ -1,0 +1,32 @@
+{
+  "id": "modern",
+  "name": "Modern",
+  "description": "Tinted left sidebar for skills, languages and certifications; teal accents and a clean sans.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 16, "right": 16, "bottom": 16, "left": 14 } },
+    "grid": {
+      "columns": [
+        { "id": "side", "width": 1, "bg": "#eef4f3", "bleed": true, "accentColor": "#0f5f58" },
+        { "id": "main", "width": 2.3 }
+      ],
+      "gutter": 10, "headerSpan": "main", "readingOrder": ["main", "side"]
+    },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "neo-grotesque", "fontHeading": "geometric",
+      "sizeName": 26, "sizeSection": 10.5, "sizeEntry": 10.5, "sizeBody": 9.75, "sizeSmall": 8.75,
+      "lineHeight": 1.38, "gapParagraph": 1.2, "gapEntry": 3.2, "gapSection": 6,
+      "colorText": "#111827", "colorMuted": "#4b5563", "colorAccent": "#0f766e", "colorRule": "#cbd5e1",
+      "colorHeading": "accent", "headingCase": "upper", "headingLetterSpacing": 0.08, "headingWeight": 700,
+      "headingRule": "none", "nameWeight": 700, "bulletChar": "▪", "dateStyle": "right", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "*": { "column": "main" },
+    "skills": { "column": "side", "variant": "tags" },
+    "languages": { "column": "side", "variant": "grid" },
+    "certifications": { "column": "side" }
+  }
+}

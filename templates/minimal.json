@@ -1,0 +1,21 @@
+{
+  "id": "minimal",
+  "name": "Minimal",
+  "description": "One quiet column with generous white space, muted headings and no rules.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 22, "right": 24, "bottom": 20, "left": 24 } },
+    "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "neo-grotesque", "fontHeading": "neo-grotesque",
+      "sizeName": 22, "sizeSection": 10, "sizeEntry": 10.25, "sizeBody": 9.5, "sizeSmall": 8.5,
+      "lineHeight": 1.45, "gapParagraph": 1.2, "gapEntry": 3.2, "gapSection": 6.5,
+      "colorText": "#1f2937", "colorMuted": "#6b7280", "colorAccent": "#374151", "colorRule": "#e5e7eb",
+      "colorHeading": "#6b7280", "headingCase": "upper", "headingLetterSpacing": 0.08, "headingWeight": 600,
+      "headingRule": "none", "nameWeight": 600, "bulletChar": "–", "dateStyle": "right", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {}
+}

@@ -1,0 +1,31 @@
+{
+  "id": "compact",
+  "name": "Compact",
+  "description": "Dense two columns with a narrow right rail: fits a full career on one page.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 12, "right": 12, "bottom": 12, "left": 12 } },
+    "grid": {
+      "columns": [{ "id": "main", "width": 2.4 }, { "id": "side", "width": 1 }],
+      "gutter": 7, "headerSpan": "full", "readingOrder": ["main", "side"]
+    },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "system-ui", "fontHeading": "system-ui",
+      "sizeName": 20, "sizeSection": 10, "sizeEntry": 9.75, "sizeBody": 9, "sizeSmall": 8,
+      "lineHeight": 1.28, "gapParagraph": 0.9, "gapEntry": 2.2, "gapSection": 4,
+      "colorText": "#18181b", "colorMuted": "#52525b", "colorAccent": "#9a3412", "colorRule": "#d4d4d8",
+      "colorHeading": "accent", "headingCase": "upper", "headingLetterSpacing": 0.05, "headingWeight": 700,
+      "headingRule": "below", "nameWeight": 700, "bulletChar": "•", "dateStyle": "right", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "*": { "column": "main" },
+    "projects": { "variant": "compact" },
+    "skills": { "column": "side", "variant": "tags" },
+    "languages": { "column": "side", "variant": "grid" },
+    "certifications": { "column": "side" },
+    "education": { "column": "side" }
+  }
+}

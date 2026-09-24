@@ -1,0 +1,25 @@
+{
+  "id": "timeline",
+  "name": "Timeline",
+  "description": "One column; experience and education hang off an accent line with dots.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 18, "right": 18, "bottom": 16, "left": 18 } },
+    "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "humanist", "fontHeading": "humanist",
+      "sizeName": 26, "sizeSection": 11, "sizeEntry": 10.5, "sizeBody": 9.75, "sizeSmall": 8.75,
+      "lineHeight": 1.36, "gapParagraph": 1.1, "gapEntry": 3.4, "gapSection": 5.5,
+      "colorText": "#111827", "colorMuted": "#4b5563", "colorAccent": "#4338ca", "colorRule": "#c7d2fe",
+      "colorHeading": "accent", "headingCase": "upper", "headingLetterSpacing": 0.07, "headingWeight": 700,
+      "headingRule": "none", "nameWeight": 700, "bulletChar": "·", "dateStyle": "below", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "experience": { "variant": "timeline" },
+    "education": { "variant": "timeline" },
+    "skills": { "variant": "grid" }
+  }
+}
