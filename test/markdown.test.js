@@ -275,3 +275,58 @@ test('parses 5000 lines quickly', () => {
   const t = performance.now(); parse(src)
   assert.ok(performance.now() - t < 200)
 })
+
+test('contact sections: one contact per paragraph line without bullets', () => {
+  const d = parse('# N\n## Contact\njane@doe.dev\n+49 151 0000000')
+  assert.deepEqual(d.sections[0].contacts.map(c => [c.kind, c.line]), [['email', 3], ['phone', 4]])
+})
+
+test('header contacts are detected on inline-flattened parts', () => {
+  const pick = ({ kind, label, text, href, valid }) => ({ kind, label, text, href, valid })
+  const d = parse('# N\n**Email:** jane@doe.dev · **Berlin**')
+  assert.deepEqual(pick(d.header.contacts[0]), { kind: 'email', label: 'Email', text: 'jane@doe.dev', href: 'mailto:jane@doe.dev', valid: true })
+  assert.deepEqual(d.header.contacts[1].kind, 'text')
+  const bold = parse('# N\n**jane@doe.dev**').header.contacts[0]
+  assert.deepEqual([bold.kind, bold.text, bold.href], ['email', 'jane@doe.dev', 'mailto:jane@doe.dev'])
+  assert.equal(parse('# N\nmailto:x@y.dev').header.contacts[0].href, 'mailto:x@y.dev')
+  const t = parse('# N\n**Staff** Engineer · _Go_').header
+  assert.deepEqual(t.contacts, [])
+  assert.deepEqual(t.taglines[0].inlines[0], { t: 'strong', c: [{ t: 'text', v: 'Staff' }] })
+})
+
+test('inline diagnostics point at the source line inside paragraphs and bullets', () => {
+  const at = src => parse(src).diagnostics.map(x => [x.line, x.code])
+  assert.deepEqual(at('# N\n## S\nline a\nline b\n[x](javascript:1)'), [[5, 'unsafe-link']])
+  assert.deepEqual(at('# N\n## S\n- a\n  b **c'), [[4, 'unclosed-emphasis']])
+  assert.deepEqual(at('# N\n## S\n\\\nx *y\nz'), [[4, 'unclosed-emphasis']])
+  assert.deepEqual(at('# N\n## S\na\n[b *c\nd](javascript:1)'), [[4, 'unclosed-emphasis'], [5, 'unsafe-link']])
+})
+
+test('autolinks drop a trailing ] when brackets are unbalanced', () => {
+  const r = parseInline('[https://x.dev]')
+  assert.deepEqual(r.filter(n => n.t === 'link').map(n => n.href), ['https://x.dev'])
+  assert.equal(inlineText(r), '[https://x.dev]')
+  assert.equal(parseInline('https://x.dev/[a]').find(n => n.t === 'link').href, 'https://x.dev/[a]')
+})
+
+test('inline parsing stays linear on unclosed brackets and markers', () => {
+  const ms = s => { const t = performance.now(); parseInline(s); return performance.now() - t }
+  assert.ok(ms('[a '.repeat(20000) + ']') < 100, 'brackets')
+  assert.ok(ms('*a _b '.repeat(10000)) < 100, 'mixed markers')
+  assert.ok(ms('*a '.repeat(10000) + 'b_ '.repeat(10000)) < 100, 'closers without openers')
+  assert.deepEqual(parseInline('[a [b](https://b.dev) c](https://c.dev)').map(n => n.t), ['link'])
+})
+
+test('formatDate and joinEntryFields never throw', () => {
+  assert.equal(formatDate({ y: 2021, m: 2.5 }, 'Mon YYYY'), '2021')
+  assert.equal(formatDate({ y: 2021, m: 13 }, 'YYYY-MM'), '2021')
+  assert.equal(formatDate({ y: 2021, m: '3' }, 'MM/YYYY'), '2021')
+  for (const bad of [undefined, null, 'x', 42, {}]) assert.equal(joinEntryFields(bad), '### ')
+})
+
+test('contact labels may contain hyphens', () => {
+  for (const label of ['E-Mail', 'E-mail']) {
+    const c = detectContact(`${label}: x@y.dev`, 1)
+    assert.deepEqual([c.kind, c.label, c.text], ['email', label, 'x@y.dev'])
+  }
+})

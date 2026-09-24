@@ -1,0 +1,29 @@
+{
+  "basics": {
+    "name": "# Jane Doe",
+    "label": "Platform Engineer",
+    "email": "jane_doe@example.com",
+    "phone": "+49 151 0000000",
+    "website": "https://janedoe.dev",
+    "summary": "Builds *boring* infrastructure.\n\nLikes [fast] feedback_loops.",
+    "location": { "city": "Berlin", "countryCode": "DE" },
+    "profiles": [{ "network": "GitHub", "username": "janedoe", "url": "https://github.com/janedoe" }]
+  },
+  "work": [{
+    "company": "Acme | Corp",
+    "website": "https://acme.example.com",
+    "position": "Staff Engineer",
+    "startDate": "2021-01-15",
+    "summary": "Led the platform group.",
+    "highlights": ["Cut deploy time with *stars* and a | b", "Multi\nline highlight", "- starts like a bullet", "ends with a backslash \\"]
+  }],
+  "education": [{ "institution": "TU Berlin", "area": "Computer Science", "studyType": "MSc", "startDate": "2012", "endDate": "2014", "courses": ["Distributed_systems"] }],
+  "skills": [
+    { "name": "Web", "level": "Expert", "keywords": ["React"] },
+    { "name": "Languages", "keywords": ["Go", "Rust"] }
+  ],
+  "languages": [{ "language": "German", "fluency": "Native" }],
+  "projects": [{ "name": "Recto", "description": "CV builder", "url": "https://example.com/recto", "highlights": ["Zero deps"] }],
+  "awards": [{ "title": "Best `code`", "awarder": "ACM", "date": "2019-05-01", "summary": "For **not** shipping." }],
+  "meta": { "canonical": "https://example.com/resume.json", "version": "v0.0.9" }
+}
