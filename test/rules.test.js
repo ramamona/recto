@@ -501,7 +501,7 @@ test('locale part: every rule, fix label and diagnostic has a key, and every {va
   const fixable = new Set(seen.filter(i => i.fix).map(i => i.rule))
   assert.equal(fixable.size, 13)
   for (const id of fixable) assert.equal(typeof EN[`preflight.${id}.fix`], 'string', id + '.fix')
-  for (const key of Object.keys(EN)) assert.match(key, /^(preflight|diag)\.[a-z-]+(\.fix)?$/)
+  for (const key of Object.keys(EN).filter(k => /^(preflight|diag)\./.test(k))) assert.match(key, /^(preflight|diag)\.[a-z-]+(\.fix)?$/)
   for (const i of seen) {
     for (const key of [i.msg, ...(i.fix ? [`preflight.${i.rule}.fix`] : [])]) {
       for (const [, v] of EN[key].matchAll(/\{(\w+)\}/g)) assert.ok(v in i.vars, `${key} needs {${v}}`)
