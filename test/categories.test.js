@@ -27,6 +27,9 @@ test('present words are longest-first and include English', () => {
   assert.ok(de.indexOf('bis heute') < de.indexOf('heute'))
   assert.ok(de.includes('present'))
   assert.deepEqual(rangeWords('de'), ['bis', 'to'])
+  assert.deepEqual(rangeWords('de-AT'), ['bis', 'to'])
+  assert.ok(presentWords('fr-CA').includes("aujourd'hui"))
+  assert.equal(isStandardHeading('Sprachen', 'de-DE'), true)
 })
 
 test('normalizeHeading', () => {

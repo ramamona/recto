@@ -126,7 +126,7 @@ export function categorize(title, _lang = 'en') {
 /** True if the title is a dictionary heading in the CV language or English (used by nonstandard-heading). */
 export function isStandardHeading(title, lang = 'en') {
   const k = normalizeHeading(title)
-  for (const l of new Set([lang, 'en'])) {
+  for (const l of new Set([primaryLang(lang), 'en'])) {
     for (const byLang of Object.values(DICT)) {
       if ((byLang[l] ?? []).some(p => normalizeHeading(p) === k)) return true
     }
@@ -135,10 +135,12 @@ export function isStandardHeading(title, lang = 'en') {
 }
 
 const uniq = a => [...new Set(a)]
+/** 'de-DE' → 'de' (layout.lang may be a regional BCP 47 tag). */
+export const primaryLang = lang => String(lang ?? 'en').toLowerCase().split('-')[0] || 'en'
 /** Present-words for the CV language plus English, longest first (so 'bis heute' wins over 'heute'). */
 export function presentWords(lang = 'en') {
-  return uniq([...(PRESENT_WORDS[lang] ?? []), ...PRESENT_WORDS.en]).sort((a, b) => b.length - a.length)
+  return uniq([...(PRESENT_WORDS[primaryLang(lang)] ?? []), ...PRESENT_WORDS.en]).sort((a, b) => b.length - a.length)
 }
 export function rangeWords(lang = 'en') {
-  return uniq([...(RANGE_WORDS[lang] ?? []), ...RANGE_WORDS.en])
+  return uniq([...(RANGE_WORDS[primaryLang(lang)] ?? []), ...RANGE_WORDS.en])
 }
