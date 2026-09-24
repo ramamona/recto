@@ -1,17 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { FONT_STACKS, resolveFont, scaledTheme, themeToCss, themeAttrs, columnCss } from '../src/render/theme.js'
-
-// Literal copy of spec 3.5 (layout.js is written in parallel)
-const THEME_DEFAULTS = {
-  fontBody: 'neo-grotesque', fontHeading: 'neo-grotesque', fontMono: 'mono',
-  sizeName: 24, sizeSection: 11, sizeEntry: 10.5, sizeBody: 9.75, sizeSmall: 8.75,
-  lineHeight: 1.35, gapParagraph: 1.2, gapEntry: 3, gapSection: 5, density: 1,
-  colorText: '#111827', colorMuted: '#4b5563', colorAccent: '#1d4ed8', colorRule: '#d1d5db', colorPage: '#ffffff',
-  colorHeading: 'accent', headingCase: 'upper', headingLetterSpacing: 0.06,
-  headingWeight: 700, nameWeight: 700, headingRule: 'below', nameCase: 'none',
-  bulletChar: '•', dateStyle: 'right', linkStyle: 'plain'
-}
+import { THEME_DEFAULTS } from '../src/model/layout.js'
 
 const TOKENS = [
   'font-body', 'font-heading', 'font-mono',

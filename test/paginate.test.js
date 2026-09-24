@@ -70,6 +70,13 @@ test('breakBefore starts a new page, but never an empty one', () => {
   assert.deepEqual(mainPages(run([A(10, { breakBefore: true }), A(10)])), [[0, 1]])
 })
 
+test('breakBefore atom is never joined into the previous chunk via keepWithNext or group', () => {
+  // A(1) keepWithNext (an empty section title) must not pull A(2)'s forced break onto page 1
+  assert.deepEqual(mainPages(run([A(10), A(10, { keepWithNext: true }), A(10, { breakBefore: true }), A(10)])), [[0, 1], [2, 3]])
+  const g = { group: 's:0' }
+  assert.deepEqual(mainPages(run([A(10, g), A(10, { ...g, breakBefore: true }), A(10, g)])), [[0], [1, 2]])
+})
+
 test('breakBefore wins over a preceding keepWithNext', () => {
   // a head-only entry (keepWithNext) must not glue onto the next section's breakBefore title
   const k = { keepWithNext: true }

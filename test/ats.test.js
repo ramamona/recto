@@ -90,7 +90,7 @@ const placement = [
 
 test('with placement: stream order, side of page 1 before main of page 2', () => {
   const text = extractText(doc, twoCol(), placement)
-  assert.equal(text, `${SAMPLE_TEXT.split('\n').slice(0, 13).join('\n')}
+  assert.equal(text, `${SAMPLE_TEXT.split('\n').slice(0, 12).join('\n')}
 
 Skills
 - Languages: TypeScript, Go, Python, SQL
@@ -150,4 +150,5 @@ test('allContacts: header first, then contact sections', () => {
   const d = parse('# N\na@b.dev\n## Contact\n- +49 151 0000000\n## Skills\n- b@c.dev')
   assert.deepEqual(allContacts(d, 'en').map(c => c.kind), ['email', 'phone'])
   assert.deepEqual(allContacts(parse('## Kontakt\n- x@y.dev'), 'de').map(c => c.text), ['x@y.dev'])
+  assert.deepEqual(extractFields(parse('# N\n[Mail me](mailto:x@y.dev?subject=hi)'), {}).emails, ['x@y.dev'])
 })

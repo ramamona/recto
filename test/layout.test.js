@@ -58,6 +58,9 @@ test('header photo, fonts, colours, custom css', () => {
   assert.deepEqual(normalizeLayout({ header: { align: 'center', photo: ok } }).header, { align: 'center', photo: { src: ok.src, size: 80, shape: 'circle', position: 'left' } })
   assert.equal(normalizeLayout({ header: { photo: { src: 'https://x.dev/a.png' } } }).header.photo, null)
   assert.equal(normalizeLayout({ header: { photo: { src: 'data:image/png;base64,' + 'A'.repeat(200000) } } }).header.photo, null)
+  assert.equal(normalizeLayout({ header: { photo: { src: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' } } }).header.photo, null)
+  const jpeg = { src: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==' }
+  assert.equal(normalizeLayout({ header: { photo: jpeg } }).header.photo.src, jpeg.src)
   const t = normalizeLayout({ theme: { fontBody: 'font:My Font', fontHeading: 'comic', fontMono: 'font:', colorHeading: 'text', colorAccent: '#ABCDEF', colorRule: 'rgb(0,0,0)' } }).theme
   assert.deepEqual([t.fontBody, t.fontHeading, t.fontMono, t.colorHeading, t.colorAccent, t.colorRule], ['font:My Font', THEME_DEFAULTS.fontHeading, 'mono', 'text', '#ABCDEF', THEME_DEFAULTS.colorRule])
   assert.equal(normalizeLayout({ customCss: 'x'.repeat(60000) }).customCss.length, 50000)

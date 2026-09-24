@@ -17,6 +17,18 @@ const FLAGS = [
 
 const LOAD_TIMEOUT = 30000
 
+/** Launch flags: base flags plus --no-sandbox on GitHub Actions Ubuntu (AppArmor blocks the sandbox there). */
+export function chromeArgs({ platform = process.platform, env = process.env, extra = [] } = {}) {
+  const noSandbox = platform === 'linux' && !!env.CI
+  return [...FLAGS, ...(noSandbox ? ['--no-sandbox'] : []), ...extra]
+}
+
+function withTimeout(promise, ms) {
+  let timer
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`evaluate timeout after ${ms} ms`)), ms) })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 function isExecutable(path) {
   try {
     accessSync(path, constants.X_OK)
@@ -54,7 +66,7 @@ export function countPdfPages(buf) {
 export async function launch({ executable = findChrome(), args = [] } = {}) {
   if (!executable) throw new Error('Chrome/Chromium not found. Install it or set CHROME_PATH.')
   const profile = await mkdtemp(join(tmpdir(), 'recto-chrome-'))
-  const proc = spawn(executable, [...FLAGS, `--user-data-dir=${profile}`, ...args], {
+  const proc = spawn(executable, chromeArgs({ extra: [`--user-data-dir=${profile}`, ...args] }), {
     stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe']
   })
   const toChrome = proc.stdio[3]
@@ -144,8 +156,9 @@ export async function launch({ executable = findChrome(), args = [] } = {}) {
     await loaded
     return {
       sessionId,
-      async evaluate(expression, { awaitPromise = true } = {}) {
-        const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true }, sessionId)
+      async evaluate(expression, { awaitPromise = true, timeout = 60000 } = {}) {
+        const req = send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true }, sessionId)
+        const { result, exceptionDetails } = await withTimeout(req, timeout)
         if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text)
         return result.value
       },

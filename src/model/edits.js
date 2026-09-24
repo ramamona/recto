@@ -1,4 +1,5 @@
 // Source edits made by the app (spec 5.2): line fixes, section moves, entry-field rewrites. Pure.
+import { splitEntryFields, joinEntryFields } from './markdown.js'
 
 /** Replace/delete whole 1-based lines, bottom-up; all-or-nothing when any `expect` no longer matches. */
 export function applyContentEdits(content, edits) {
@@ -41,20 +42,11 @@ export function moveSectionSource(content, doc, id, beforeSectionId, afterSectio
   return out.map(p => p.join('\n')).join('\n\n') + (nl ? '\n' : '')
 }
 
-// Split on '|' preceded by an even number of backslashes (i.e. not escaped); escapes are kept.
-// ponytail: local copy of markdown.js splitEntryFields/joinEntryFields semantics; import them once Task 1 lands.
-const splitFields = raw => raw.split(/(?<=(?:^|[^\\])(?:\\\\)*)\|/).map(f => f.trim())
-const joinFields = fields => {
-  const f = [...fields]
-  while (f.length && !f.at(-1)) f.pop()
-  return '### ' + f.join(' | ')
-}
-
 /** Rewrite field `index` (0 title, 1 org, 2 date, 3 location) of a `###` line; other fields keep their text. */
 export function setEntryField(line, index, value) {
   if (!/^###(\s|$)/.test(line)) return line
-  const fields = splitFields(line.slice(3))
+  const fields = splitEntryFields(line.slice(3))
   while (fields.length <= index) fields.push('')
   fields[index] = value
-  return joinFields(fields)
+  return joinEntryFields(fields)
 }

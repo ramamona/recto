@@ -131,9 +131,11 @@ function normGrid(g) {
   }
 }
 
+const PHOTO_SRC = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/
+
 function normHeader(h) {
   const p = obj(h.photo)
-  const ok = typeof p.src === 'string' && p.src.startsWith('data:image/') && p.src.length <= 200000
+  const ok = typeof p.src === 'string' && p.src.length <= 200000 && PHOTO_SRC.test(p.src)
   return {
     align: oneOf(h.align, ENUMS.align, 'left'),
     photo: ok ? {

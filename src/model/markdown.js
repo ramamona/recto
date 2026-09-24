@@ -27,10 +27,27 @@ export function classifyLine(line, prev) {
 }
 
 // Consecutive lines join with a space; an unescaped trailing backslash is a hard break ('\n' → br).
-function joinLines(lines) {
-  return lines.map(l => l.trim())
-    .map(l => /(^|[^\\])(\\\\)*\\$/.test(l) ? l.slice(0, -1).trimEnd() + '\n' : l + ' ')
-    .join('').trim()
+// Also returns lineAt(offset): the source line a character of the joined+trimmed text came from
+// (lines are always contiguous source lines starting at startLine), for per-line diagnostics.
+function joinLines(lines, startLine) {
+  let offset = 0
+  const marks = []
+  const joined = lines.map((raw, k) => {
+    const t = raw.trim()
+    const piece = /(^|[^\\])(\\\\)*\\$/.test(t) ? t.slice(0, -1).trimEnd() + '\n' : t + ' '
+    marks.push({ at: offset, line: startLine + k })
+    offset += piece.length
+    return piece
+  }).join('')
+  const lead = joined.length - joined.trimStart().length
+  const text = joined.trim()
+  const lineAt = off => {
+    const abs = off + lead
+    let line = marks[0]?.line ?? startLine
+    for (const m of marks) { if (m.at > abs) break; line = m.line }
+    return line
+  }
+  return { text, lineAt }
 }
 
 // ---------- document ----------
@@ -45,14 +62,26 @@ export function parse(source) {
   let region = 'pre', prev = 'blank', warnedPre = false, sepFound = false
   let section = null, entry = null, list = null, item = null, para = null, lastLine = 0
 
-  const closeItem = () => { if (item) item.node.inlines = inl(joinLines(item.lines), item.node.line); item = null }
-  const closePara = () => { if (para) para.node.inlines = inl(joinLines(para.lines), para.node.line); para = null }
+  const paraLines = new WeakMap() // paragraph node -> raw source lines, for contact-section splitting (3.2)
+  const closeItem = () => {
+    if (!item) return
+    const { text, lineAt } = joinLines(item.lines, item.node.line)
+    item.node.inlines = inl(text, lineAt)
+    item = null
+  }
+  const closePara = () => {
+    if (!para) return
+    const { text, lineAt } = joinLines(para.lines, para.node.line)
+    para.node.inlines = inl(text, lineAt)
+    paraLines.set(para.node, para.lines)
+    para = null
+  }
   const closeList = () => { closeItem(); list = null }
   const closeSection = () => {
     closePara(); closeList(); entry = null
     if (!section) return
     section.endLine = lastLine
-    if (categorize(section.title) === 'contact') section.contacts = sectionContacts(section.blocks)
+    if (categorize(section.title) === 'contact') section.contacts = sectionContacts(section.blocks, paraLines)
   }
   const blocks = () => (entry ?? section).blocks
 
@@ -73,7 +102,7 @@ export function parse(source) {
     if (kind === 'bullet' || kind === 'entry') diag(line, 'header-markup')
     if (kind === 'name') diag(line, 'extra-name')
     const inlines = inl(text, line)
-    const contacts = text.split(SEP_RE).filter(p => p.trim()).map(p => detectContact(p, line))
+    const contacts = text.split(SEP_RE).filter(p => p.trim()).map(p => detectContact(flattenPart(p), line))
     if (!contacts.some(isContactLike)) return header.taglines.push({ line, inlines })
     header.contacts.push(...contacts)
     const sep = !sepFound && SEP_RE.exec(text)
@@ -164,7 +193,7 @@ export function splitEntryFields(raw) {
 }
 
 export function joinEntryFields(fields) {
-  const f = [...fields]
+  const f = Array.isArray(fields) ? [...fields] : []
   while (f.length && !f[f.length - 1]) f.pop()
   return '### ' + f.join(' | ')
 }
@@ -198,9 +227,14 @@ const WS_RUN = /[^\S\u00a0]+/g // NBSP is kept: in content it is deliberate
 const URL_AT = /https?:\/\/[^\s<>]+/iy
 const EMAIL_AT = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/y
 
+// ctx.line is either a fixed line number or a lineAt(offset) function (multi-line paragraphs/items),
+// so a diagnostic can point at the source line the offending character actually came from.
 export function parseInline(text, ctx) {
   const { nodes, diags } = inline(String(text ?? ''), false)
-  if (ctx?.diagnostics) for (const d of diags) ctx.diagnostics.push({ line: ctx.line, ...d })
+  if (ctx?.diagnostics) for (const d of diags) {
+    const line = typeof ctx.line === 'function' ? ctx.line(d.at) : ctx.line
+    ctx.diagnostics.push({ line, code: d.code, vars: d.vars })
+  }
   return nodes
 }
 
@@ -209,12 +243,16 @@ export function inlineText(inlines) {
 }
 
 // Single pass: escapes, code, links and autolinks become nodes; emphasis uses a delimiter stack, so
-// unmatched markers stay literal in linear time (no backtracking).
+// unmatched markers stay literal in linear time (no backtracking). Diagnostics carry `at` (a character
+// offset into this call's `s`), resolved to a source line by the caller (parseInline).
 function inline(s, inLink) {
   const out = [], stack = [], diags = []
+  const brackets = bracketTable(s, '[', ']')
+  const parens = bracketTable(s, '(', ')')
+  const byMark = new Map() // mark -> indices into `stack`, so finding the innermost opener is O(1) not O(stack)
   let buf = '', i = 0
   const flush = () => { if (buf) out.push({ t: 'text', v: buf }); buf = '' }
-  const unmatched = d => { out[d.idx] = { t: 'text', v: d.mark }; diags.push({ code: 'unclosed-emphasis', vars: { marker: d.mark } }) }
+  const unmatched = d => { out[d.idx] = { t: 'text', v: d.mark }; diags.push({ code: 'unclosed-emphasis', vars: { marker: d.mark }, at: d.at }) }
 
   while (i < s.length) {
     const ch = s[i]
@@ -225,22 +263,27 @@ function inline(s, inLink) {
       if (j > 0) { flush(); out.push({ t: 'code', v: s.slice(i + 1, j) }); i = j + 1; continue }
     }
     if (ch === '[' && !inLink) {
-      const r = link(s, i)
+      const r = link(s, i, brackets, parens)
       if (r) { flush(); out.push(...r.nodes); diags.push(...r.diags); i = r.i; continue }
     }
     if (ch === '*' || ch === '_') {
       const mark = ch === '*' && s[i + 1] === '*' ? '**' : ch
       const { open, close } = flanking(s, i, mark)
-      const k = close ? stack.findLastIndex(d => d.mark === mark) : -1
+      const marksOfType = byMark.get(mark)
+      const k = close && marksOfType?.length ? marksOfType[marksOfType.length - 1] : -1
       if (k >= 0) {
         flush()
         const d = stack[k]
-        stack.splice(k).slice(1).forEach(unmatched)
+        const removed = stack.splice(k)
+        for (const r of removed) byMark.get(r.mark).pop()
+        removed.slice(1).forEach(unmatched)
         const c = mergeText(out.splice(d.idx + 1))
         out[d.idx] = c.length ? { t: mark === '**' ? 'strong' : 'em', c } : { t: 'text', v: mark + mark }
       } else if (open) {
         flush()
-        stack.push({ mark, idx: out.push({ t: 'delim' }) - 1 })
+        stack.push({ mark, idx: out.push({ t: 'delim' }) - 1, at: i })
+        if (!byMark.has(mark)) byMark.set(mark, [])
+        byMark.get(mark).push(stack.length - 1)
       } else buf += mark
       i += mark.length
       continue
@@ -274,28 +317,33 @@ function mergeText(nodes) {
   return out
 }
 
-function matchBracket(s, i, open, close) {
-  if (s.indexOf(close, i) < 0) return -1
-  let depth = 0
-  for (let j = i; j < s.length; j++) {
-    if (s[j] === '\\') j++
-    else if (s[j] === open) depth++
-    else if (s[j] === close && --depth === 0) return j
+// Matching brackets for the whole string in one linear pass (a stack), instead of rescanning
+// from every '[' — avoids the O(n²) blowup of a long run of unmatched openers.
+function bracketTable(s, open, close) {
+  const table = new Map()
+  const stack = []
+  for (let j = 0; j < s.length; j++) {
+    const c = s[j]
+    if (c === '\\') { j++; continue }
+    if (c === open) stack.push(j)
+    else if (c === close && stack.length) table.set(stack.pop(), j)
   }
-  return -1
+  return table
 }
 
-function link(s, i) {
-  const close = matchBracket(s, i, '[', ']')
+function link(s, i, brackets, parens) {
+  const close = brackets.get(i) ?? -1
   if (close < 0 || s[close + 1] !== '(') return null
-  const stop = matchBracket(s, close + 1, '(', ')')
+  const stop = parens.get(close + 1) ?? -1
   if (stop < 0) return null
-  const url = s.slice(close + 2, stop).trim()
+  const urlAt = close + 2
+  const url = s.slice(urlAt, stop).trim()
   const inner = inline(s.slice(i + 1, close), true)
+  const innerDiags = inner.diags.map(d => ({ ...d, at: d.at + i + 1 }))
   const href = safeHref(unescape(url))
-  if (!href) return { nodes: inner.nodes, diags: [...inner.diags, { code: 'unsafe-link', vars: { url } }], i: stop + 1 }
+  if (!href) return { nodes: inner.nodes, diags: [...innerDiags, { code: 'unsafe-link', vars: { url }, at: urlAt }], i: stop + 1 }
   const c = inner.nodes.length ? inner.nodes : [{ t: 'text', v: url }]
-  return { nodes: [{ t: 'link', href, c }], diags: inner.diags, i: stop + 1 }
+  return { nodes: [{ t: 'link', href, c }], diags: innerDiags, i: stop + 1 }
 }
 
 const count = (s, ch) => s.split(ch).length - 1
@@ -305,12 +353,15 @@ function autolink(s, i) {
   URL_AT.lastIndex = i
   const m = URL_AT.exec(s)
   if (m) {
-    // Drop trailing punctuation, and a trailing ')' while parentheses are unbalanced ('*_' too, so **url** works).
-    let len = m[0].length, excess = count(m[0], ')') - count(m[0], '(')
+    // Drop trailing punctuation, and a trailing ')' / ']' while that bracket kind is unbalanced ('*_' too, so **url** works).
+    let len = m[0].length
+    let excessParen = count(m[0], ')') - count(m[0], '(')
+    let excessBracket = count(m[0], ']') - count(m[0], '[')
     for (;;) {
       const c = m[0][len - 1]
       if ('.,;:!?\'"*_'.includes(c)) len--
-      else if (c === ')' && excess > 0) { len--; excess-- }
+      else if (c === ')' && excessParen > 0) { len--; excessParen-- }
+      else if (c === ']' && excessBracket > 0) { len--; excessBracket-- }
       else break
     }
     const url = m[0].slice(0, len)
@@ -327,7 +378,7 @@ const ALLOWED = /^(https?|mailto|tel):/i
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TLDS = new Set('com org net io dev app me co ai page site xyz info eu uk de fr es it nl ch at se no dk fi pl in ca au us'.split(' '))
-const LABEL_RE = /^\p{L}[\p{L} ]{0,19}:\s*/u
+const LABEL_RE = /^\p{L}[\p{L} -]{0,19}:\s*/u
 const NO_LABEL = /^(?:[a-z][a-z0-9+.-]*:\/\/|(?:mailto|tel):\S+$)/i // `https:` / `tel:` are schemes, not labels
 
 function isBareDomain(t) {
@@ -392,8 +443,25 @@ export const isContactLike = c => c.kind !== 'text'
 const sourceText = inlines => inlines.map(n =>
   n.t === 'link' ? `[${inlineText(n.c)}](${n.href})` : n.t === 'br' ? '\n' : n.c ? sourceText(n.c) : n.v).join('')
 
-function sectionContacts(blocks) {
-  const units = blocks.flatMap(b => b.type === 'list' ? b.items : b.type === 'paragraph' ? [b] : [])
+// A header/contact part written with markdown emphasis (e.g. `**Email:** x@y.dev`) needs that markup
+// stripped before label/contact detection; plain text and raw markdown links are left as source text
+// (unchanged by the round trip) so an already-clean autolinked part like `mailto:x@y.dev` isn't
+// re-wrapped as `mailto:[x@y.dev](mailto:x@y.dev)` by the link reconstruction above.
+const hasMarkup = n => n.t === 'strong' || n.t === 'em' || n.t === 'code'
+function flattenPart(part) {
+  const nodes = parseInline(part)
+  return nodes.some(hasMarkup) ? sourceText(nodes) : part
+}
+
+function sectionContacts(blocks, paraLines) {
+  const units = blocks.flatMap(b => {
+    if (b.type === 'list') return b.items
+    if (b.type !== 'paragraph') return []
+    const lines = paraLines?.get(b)
+    // Multiple source lines with no bullets: one contact per line, in addition to the ' · '/'|' split below.
+    if (lines?.length > 1) return lines.map((raw, k) => ({ line: b.line + k, inlines: parseInline(raw.trim()) }))
+    return [b]
+  })
   return units.flatMap(u => sourceText(u.inlines).split(PART_RE)
     .filter(p => p.trim()).map(p => detectContact(p, u.line)).filter(isContactLike))
 }
@@ -470,7 +538,8 @@ const pad = m => String(m).padStart(2, '0')
 export function formatDate(point, style, lang = 'en') {
   if (!point) return ''
   const { y, m } = point
-  if (!(m >= 1 && m <= 12) || style === 'YYYY') return String(y)
+  const validMonth = typeof m === 'number' && Number.isInteger(m) && m >= 1 && m <= 12
+  if (!validMonth || style === 'YYYY') return String(y)
   if (style === 'YYYY-MM') return `${y}-${pad(m)}`
   if (style === 'MM/YYYY') return `${pad(m)}/${y}`
   const name = locale(lang)[style === 'Month YYYY' ? 'long' : 'short'][m - 1].replace(/\.$/, '')
