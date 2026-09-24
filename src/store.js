@@ -220,5 +220,7 @@ export function createStore({ storage, runPreflight = () => [], now = () => new 
     },
 
     toContainer,
+    /** Write a pending autosave now (page hide/unload); no-op when nothing is pending. */
+    flush,
   }
 }

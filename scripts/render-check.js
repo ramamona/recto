@@ -88,9 +88,17 @@ const driftDoc = (base, margin) => {
   return JSON.stringify({ ...file, layout: { ...file.layout, customCss: `[data-page] .cv-li { margin-top: ${margin}mm; }` } })
 }
 
-const colsJs = `[...document.getElementById('recto-print').shadowRoot.querySelectorAll('.cv-page .cv-col')]
+const PRINT_ROOT = "document.getElementById('recto-print').shadowRoot"
+const colsJs = `[...${PRINT_ROOT}.querySelectorAll('.cv-page .cv-col')]
   .filter(c => c.scrollHeight > c.clientHeight + 1 || c.scrollWidth > c.clientWidth + 1)
   .map(c => c.closest('.cv-page').dataset.page + ':' + c.dataset.col)`
+
+// Entries of the 'left' date style whose date wraps onto a second line (distinct line-box tops > 4 px apart)
+const wrappedDatesJs = root => `[...${root}.querySelectorAll('.cv-entry[data-head="left"] .cv-date')].filter(el => {
+  const r = document.createRange(); r.selectNodeContents(el)
+  const tops = [...r.getClientRects()].map(x => x.top).sort((a, b) => a - b)
+  return tops.some((t, i) => i && t - tops[i - 1] > 4)
+}).map(el => el.textContent)`
 
 const noFlags = (r, kinds = ['overflow', 'verify-failed']) =>
   r.report.flags.filter(f => kinds.includes(f.kind)).map(f => `${f.kind} p${f.page} ${f.colId}`)
@@ -105,7 +113,7 @@ const CASES = [
     r.report.pageCount >= 3 ? null : `stress rendered ${r.report.pageCount} pages (min 3)`,
     r.placement.some(p => p.sectionId === 'experience' && p.page >= 2) ? null : 'panel section did not split across pages'
   ] },
-  { name: 'variants', route: '/__check/variants.cv.json', body: variantsDoc, expect: noFlags },
+  { name: 'variants', route: '/__check/variants.cv.json', body: variantsDoc, wrappedDates: true, expect: noFlags },
   { name: 'below', route: '/__check/below.cv.json', body: belowDoc, expect: noFlags },
   { name: 'inline', route: '/__check/inline.cv.json', body: inlineDoc, expect: noFlags },
   { name: 'verify', route: '/__check/verify.cv.json', body: sample => driftDoc(container(sample, {}), 2), expect: noFlags },
@@ -139,9 +147,53 @@ async function runCase(browser, base, c) {
       ...(c.overflowOk ? [] : overflowing.map(id => `column overflows its cell (page:col ${id})`)),
       pdfPages === r.report.pageCount ? null : `PDF has ${pdfPages} pages, report says ${r.report.pageCount}`,
       c.maxMs && ms >= c.maxMs ? `took ${ms} ms (max ${c.maxMs})` : null,
+      ...(c.wrappedDates ? (await page.evaluate(wrappedDatesJs(PRINT_ROOT), { awaitPromise: false })).map(d => `date wraps: "${d}"`) : []),
       ...c.expect(r)
     ].filter(Boolean)
     return { name: c.name, ms, pages: r.report.pageCount, pdfPages, fill: r.report.lastPageFill, flags: r.report.flags.length, violations: r.violations.length, problems, report: r.report }
+  } finally {
+    await page.close().catch(() => {})
+  }
+}
+
+// App mode below 900 px on the Write tab, where the canvas pane is not shown (review finding: a display:none
+// canvas measured every height as 0, so the report said one empty page). The live report must match print
+// mode, and the print stylesheet must lay the canvas out wherever the tab left it.
+async function appCase(browser, base, printReport) {
+  const page = await browser.newPage('about:blank')
+  const cdp = (method, params) => browser.send(method, params, page.sessionId)
+  try {
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 800, height: 900, deviceScaleFactor: 1, mobile: false })
+    await cdp('Page.navigate', { url: `${base}/` })
+    // resolve once a report exists and has not changed for 500 ms
+    const r = await withTimeout(page.evaluate(`new Promise(res => {
+      let last = null, since = 0
+      const poll = () => {
+        const rep = window.recto?.store?.state.report
+        if (rep && rep === last && Date.now() - since > 500) return res({ tab: window.recto.store.state.ui.tab, pageCount: rep.pageCount, fill: rep.lastPageFill })
+        if (rep !== last) { last = rep; since = Date.now() }
+        setTimeout(poll, 50)
+      }
+      poll()
+    })`), READY_TIMEOUT, 'app report')
+    const canvasVisible = () => page.evaluate(`(s => s.display !== 'none' && s.visibility === 'visible' && s.position === 'static')(getComputedStyle(document.getElementById('canvas')))`, { awaitPromise: false })
+    // an edit inside the 500 ms autosave debounce must reach localStorage when the page is hidden
+    const flushed = await page.evaluate(`(() => {
+      const { store } = window.recto
+      store.setContent(store.state.content + '\\n<!-- pagehide -->')
+      window.dispatchEvent(new PageTransitionEvent('pagehide'))
+      return JSON.parse(localStorage.getItem('recto:doc:' + store.state.docId)).content.endsWith('<!-- pagehide -->')
+    })()`, { awaitPromise: false })
+    await cdp('Emulation.setEmulatedMedia', { media: 'print' })
+    const printable = await canvasVisible()
+    const problems = [
+      r.tab === 'write' ? null : `app opened on the ${r.tab} tab, expected write`,
+      r.pageCount === printReport.pageCount ? null : `app reports ${r.pageCount} pages at 800 px, print mode ${printReport.pageCount}`,
+      Math.abs(r.fill - printReport.lastPageFill) < 0.02 ? null : `app lastPageFill ${r.fill} at 800 px, print mode ${printReport.lastPageFill}`,
+      printable ? null : 'canvas pane is not laid out for print from the Write tab',
+      flushed ? null : 'pending autosave was not written on pagehide'
+    ].filter(Boolean)
+    return { name: 'app-800px', pages: r.pageCount, fill: r.fill, problems }
   } finally {
     await page.close().catch(() => {})
   }
@@ -161,6 +213,14 @@ async function main() {
         results.push(await runCase(browser, url, c))
       } catch (err) {
         results.push({ name: c.name, problems: [err.message] })
+      }
+    }
+    const sampleReport = results.find(r => r.name === 'sample')?.report
+    if (sampleReport) {
+      try {
+        results.push(await appCase(browser, url, sampleReport))
+      } catch (err) {
+        results.push({ name: 'app-800px', problems: [err.message] })
       }
     }
   } finally {

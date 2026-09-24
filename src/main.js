@@ -94,6 +94,9 @@ async function appMode() {
 
   const storage = storageMod.createBrowserStorage()
   const store = createStore({ storage, runPreflight, locale: navigator.language })
+  // the autosave is debounced; write it before the page goes away (saveDoc is synchronous localStorage)
+  on(window, 'pagehide', () => store.flush())
+  on(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') store.flush() })
   const banners = h('div', { class: 'app-banners' })
   document.body.append(banners)
 

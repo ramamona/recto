@@ -128,14 +128,15 @@
 /* below: date · location on a muted line under the title */
 .cv-entry[data-head="below"] .cv-entry-main, .cv-entry-meta { display: block; }
 
-/* left: date in a 22 mm gutter; the head reaches back into the entry's padding */
-.cv-entry[data-head="left"] { padding-left: 24mm; }
+/* left: date in a gutter sized from the small text (10 em: ~30 mm at 8.5 pt; "Jun 2019 – Feb 2022" is 9.5 em in the default sans);
+   the head reaches back into the entry's padding. --cv-date-gutter is set here, derived only from --cv-size-small. */
+.cv-entry[data-head="left"] { --cv-date-gutter: calc(var(--cv-size-small) * 10); padding-left: calc(var(--cv-date-gutter) + 2mm); }
 .cv-entry[data-head="left"] > .cv-entry-head {
   display: grid;
-  grid-template-columns: 22mm minmax(0, 1fr);
+  grid-template-columns: var(--cv-date-gutter) minmax(0, 1fr);
   column-gap: 2mm;
   align-items: baseline;
-  margin-left: -24mm;
+  margin-left: calc(-1 * (var(--cv-date-gutter) + 2mm));
 }
 .cv-entry[data-head="left"] .cv-entry-main, .cv-entry[data-head="left"] .cv-location { grid-column: 2; }
 
@@ -162,7 +163,7 @@
   background: var(--cv-col-accent, var(--cv-color-accent));
 }
 .cv-section[data-variant="timeline"] .cv-cont-prev::after { visibility: hidden; }
-.cv-section[data-variant="timeline"] .cv-entry[data-head="left"] > .cv-entry-head { margin-left: -28mm; column-gap: 6mm; }
+.cv-section[data-variant="timeline"] .cv-entry[data-head="left"] > .cv-entry-head { margin-left: calc(-1 * (var(--cv-date-gutter) + 6mm)); column-gap: 6mm; }
 
 /* ---------- blocks ---------- */
 

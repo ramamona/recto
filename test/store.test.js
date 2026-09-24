@@ -349,6 +349,22 @@ test('autosave is debounced', async () => {
   assert.equal(storage.loadDoc(store.state.docId).content, '# Two')
 })
 
+test('flush writes a pending autosave at once and is a no-op otherwise', () => {
+  const mem = createMemoryStorage()
+  let saves = 0
+  const storage = { ...mem, saveDoc: (id, c) => (saves++, mem.saveDoc(id, c)) }
+  const { store } = setup({ storage, debounceMs: 60000 })
+  store.flush()
+  saves = 0
+  store.setContent('# Last keystroke')
+  assert.equal(saves, 0)
+  store.flush()
+  assert.equal(saves, 1)
+  assert.equal(storage.loadDoc(store.state.docId).content, '# Last keystroke')
+  store.flush()
+  assert.equal(saves, 1)
+})
+
 test('memory storage: round trip, index newest first, corrupt JSON → null', () => {
   const s = createMemoryStorage()
   assert.deepEqual(s.saveDoc('a', { name: 'A', content: 'x', fonts: [{ family: 'F', data: '' }] }), { ok: true })

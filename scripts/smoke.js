@@ -80,6 +80,13 @@ function pdfTextProblems(pdfPath, r, doc) {
   return problems
 }
 
+// Entries of the 'left' date style whose date wraps onto a second line (distinct line-box tops > 4 px apart)
+const wrappedDatesJs = `[...document.getElementById('recto-print').shadowRoot.querySelectorAll('.cv-entry[data-head="left"] .cv-date')].filter(el => {
+  const r = document.createRange(); r.selectNodeContents(el)
+  const tops = [...r.getClientRects()].map(x => x.top).sort((a, b) => a - b)
+  return tops.some((t, i) => i && t - tops[i - 1] > 4)
+}).map(el => el.textContent)`
+
 async function runTemplate(browser, base, t, doc, pdftotext) {
   const page = await browser.newPage(`${base}/?print=${encodeURIComponent(SAMPLE)}&template=${t.id}&report=1`)
   try {
@@ -92,7 +99,9 @@ async function runTemplate(browser, base, t, doc, pdftotext) {
     await writeFile(pdfPath, pdf)
     const pdfPages = countPdfPages(pdf)
     const errors = r.issues.filter(i => i.severity === 'error')
+    const wrapped = await page.evaluate(wrappedDatesJs, { awaitPromise: false })
     const problems = [
+      ...wrapped.map(d => `date wraps: "${d}"`),
       ...errors.map(i => `preflight error ${i.rule} ${JSON.stringify(i.vars ?? {})}`),
       pageCount <= t.targetPages ? null : `${pageCount} pages, target ${t.targetPages}`,
       pageCount === t.targetPages && lastPageFill > MAX_FILL ? `last page ${Math.round(lastPageFill * 100)} % full (max ${MAX_FILL * 100} %)` : null,

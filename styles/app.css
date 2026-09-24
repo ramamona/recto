@@ -126,7 +126,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .app-tabs { grid-row: 2; display: flex; }
   .app-main { grid-row: 3; grid-template-columns: minmax(0, 1fr); }
   .app-splitter { display: none; }
-  .app-main > .app-pane:not(.is-active) { display: none; }
+  .app-main > .app-pane:not(.is-active):not(.app-pane--canvas) { display: none; }
+  /* the canvas stays laid out off-screen: display:none would measure every height as 0 (pagination, preflight, print) */
+  .app-main > .app-pane--canvas:not(.is-active) { position: fixed; top: 0; left: -200vw; width: 100vw; height: 100vh; visibility: hidden; }
 }
 
 /* ---------- Buttons ---------- */
@@ -235,7 +237,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media print {
   html, body { background: none !important; overflow: visible !important; height: auto !important; }
   .app-top, .app-tabs, .app-splitter, .app-side, .app-pane--editor, .ui-toasts, .ui-dialog, .no-print { display: none !important; }
-  .app, .app-main, .app-pane--canvas { display: block !important; height: auto !important; background: none !important; overflow: visible !important; }
+  .app, .app-main, .app-pane--canvas { display: block !important; height: auto !important; background: none !important; overflow: visible !important; }  .app-pane--canvas { position: static !important; visibility: visible !important; width: auto !important; }
 }
 
 /* Side pane regions (inspector above, check/ATS panels below) */
