@@ -2,15 +2,15 @@
   "id": "executive",
   "name": "Executive",
   "description": "Old-style serif with a large name, navy accents and a rule across the top of every page.",
-  "targetPages": 2,
+  "targetPages": 1,
   "layout": {
-    "page": { "margins": { "top": 22, "right": 20, "bottom": 18, "left": 20 } },
+    "page": { "margins": { "top": 18, "right": 20, "bottom": 15, "left": 20 } },
     "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
     "header": { "align": "left" },
     "theme": {
       "fontBody": "old-style", "fontHeading": "old-style",
-      "sizeName": 32, "sizeSection": 13, "sizeEntry": 11, "sizeBody": 10, "sizeSmall": 9,
-      "lineHeight": 1.36, "gapParagraph": 1.3, "gapEntry": 3.4, "gapSection": 6,
+      "sizeName": 28, "sizeSection": 12, "sizeEntry": 10.5, "sizeBody": 9.75, "sizeSmall": 8.75,
+      "lineHeight": 1.27, "gapParagraph": 1, "gapEntry": 2.5, "gapSection": 4.2,
       "colorText": "#111827", "colorMuted": "#4b5563", "colorAccent": "#1e3a5f", "colorRule": "#9fb3c8",
       "colorHeading": "accent", "headingCase": "none", "headingLetterSpacing": 0.02, "headingWeight": 600,
       "headingRule": "below", "nameWeight": 500, "bulletChar": "▪", "dateStyle": "right", "linkStyle": "plain"
@@ -20,5 +20,9 @@
       { "id": "top-rule", "kind": "line", "pages": "all", "x": 20, "y": 9, "w": 170, "h": 0, "fill": null, "stroke": "#b08d57", "strokeWidth": 0.6, "z": "back" }
     ]
   },
-  "sectionDefaults": {}
+  "sectionDefaults": {
+    "projects": { "variant": "compact" },
+    "skills": { "variant": "grid" },
+    "languages": { "variant": "grid" }
+  }
 }

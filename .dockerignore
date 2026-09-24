@@ -1,0 +1,9 @@
+.git
+.github
+.superpowers
+.DS_Store
+out
+test
+docs/superpowers
+node_modules
+*.log

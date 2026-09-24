@@ -26,7 +26,7 @@
   "sectionDefaults": {
     "*": { "column": "main" },
     "skills": { "column": "side", "variant": "tags" },
-    "languages": { "column": "side", "variant": "grid" },
-    "certifications": { "column": "side" }
+    "languages": { "column": "side", "variant": "tags" },
+    "certifications": { "column": "side", "variant": "compact" }
   }
 }

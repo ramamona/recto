@@ -1,6 +1,6 @@
 # Recto Markdown
 
-Recto content is a small, **strict, line-oriented** Markdown dialect. Every line is classified on its own, so the same text always parses the same way, and anything the parser doesn't understand renders as plain text plus a diagnostic in the Check panel. It never disappears silently. In the app, the **?** button next to the editor shows this grammar with one example per row.
+Recto content is a small, **strict, line-oriented** Markdown dialect. Every line is classified on its own, so the same text always parses the same way, and anything the parser doesn't understand renders as plain text plus a diagnostic in the Check panel. It never disappears silently. In the app, the **?** button above the editor shows this grammar with one example per row.
 
 ## A complete example
 

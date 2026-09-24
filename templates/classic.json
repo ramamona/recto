@@ -4,18 +4,21 @@
   "description": "One column, serif type, centred header and small-caps headings over a hairline rule.",
   "targetPages": 1,
   "layout": {
-    "page": { "margins": { "top": 18, "right": 20, "bottom": 18, "left": 20 } },
+    "page": { "margins": { "top": 16, "right": 20, "bottom": 16, "left": 20 } },
     "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
     "header": { "align": "center" },
     "theme": {
       "fontBody": "transitional", "fontHeading": "transitional",
-      "sizeName": 26, "sizeSection": 12.5, "sizeEntry": 10.5, "sizeBody": 10, "sizeSmall": 9,
-      "lineHeight": 1.35, "gapParagraph": 1.2, "gapEntry": 3, "gapSection": 5.5,
+      "sizeName": 24, "sizeSection": 12, "sizeEntry": 10.5, "sizeBody": 10, "sizeSmall": 9,
+      "lineHeight": 1.28, "gapParagraph": 1, "gapEntry": 2.4, "gapSection": 4.2,
       "colorText": "#1c1917", "colorMuted": "#57534e", "colorAccent": "#1c1917", "colorRule": "#a8a29e",
       "colorHeading": "text", "headingCase": "small-caps", "headingLetterSpacing": 0.06, "headingWeight": 600,
       "headingRule": "below", "nameWeight": 600, "bulletChar": "•", "dateStyle": "right", "linkStyle": "plain"
     },
     "decor": []
   },
-  "sectionDefaults": {}
+  "sectionDefaults": {
+    "projects": { "variant": "compact" },
+    "languages": { "variant": "grid" }
+  }
 }

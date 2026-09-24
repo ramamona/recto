@@ -24,8 +24,8 @@
     "*": { "column": "main" },
     "projects": { "variant": "compact" },
     "skills": { "column": "side", "variant": "tags" },
-    "languages": { "column": "side", "variant": "grid" },
-    "certifications": { "column": "side" },
-    "education": { "column": "side" }
+    "languages": { "column": "side", "variant": "tags" },
+    "certifications": { "column": "side", "variant": "compact" },
+    "education": { "column": "side", "variant": "compact" }
   }
 }

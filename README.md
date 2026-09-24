@@ -30,7 +30,7 @@ node serve.js            # → http://127.0.0.1:8710
 
 **Opening `index.html` straight from disk (`file://`) is not supported.** Browsers block ES modules on `file://` URLs, so always serve the folder over HTTP.
 
-On the first run, the app loads a sample CV and opens the template gallery. To print, use **Export → PDF**, or press `Cmd/Ctrl+P`.
+On the first run, the app loads a sample CV. Pick a look with **Templates** in the top bar, edit the text on the left, and print with **Export → PDF (print)** or `Cmd/Ctrl+P`. In the print dialog choose **Save as PDF**.
 
 ## Hosting
 
