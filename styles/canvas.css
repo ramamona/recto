@@ -1,0 +1,103 @@
+/* Canvas pane (src/ui/canvas.js): toolbar, scroll viewport, zoom wrapper and the overlay layer.
+   Overlay sizes are multiplied by --inv (1 / zoom) so handles and labels keep their screen size at any zoom. */
+
+.cvs { position: relative; }
+.cvs-toolbar {
+  display: flex; align-items: center; gap: 4px; flex: none; min-width: 0; overflow-x: auto;
+  padding: 6px 8px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); scrollbar-width: none;
+}
+.cvs-group { display: flex; gap: 2px; }
+.cvs-zoom-select { width: auto; }
+.cvs-viewport { flex: 1; min-height: 0; overflow: auto; outline: none; }
+.cvs-viewport:focus-visible { box-shadow: inset 0 0 0 2px var(--ui-accent); }
+
+.cvs-stage { box-sizing: content-box; position: relative; margin: 0 auto; padding: 28px; }
+.cvs-zoom { position: absolute; left: 28px; top: 28px; width: max-content; transform-origin: 0 0; }
+.cvs-zoom.is-drawing { cursor: crosshair; }
+.cvs-host { display: block; }
+.cvs-probe { position: absolute; left: -30000mm; top: 0; visibility: hidden; }
+
+.cvs-overlay { --inv: 1; position: absolute; inset: 0; pointer-events: none; }
+.cvs-layer, .cvs-page { position: absolute; left: 0; top: 0; }
+.cvs-layer { width: 0; height: 0; overflow: visible; }
+
+/* rulers */
+.cvs-ruler { position: absolute; overflow: visible; font-family: var(--ui-mono); }
+.cvs-ruler__bg { fill: var(--ui-surface); }
+.cvs-ruler__margin { fill: var(--ui-surface-2); }
+.cvs-ruler path { stroke: var(--ui-muted); fill: none; }
+.cvs-ruler text { fill: var(--ui-muted); }
+
+/* margin and column handles: a wide invisible hit strip with a dashed guide drawn in the middle */
+.cvs-handle { position: absolute; pointer-events: auto; }
+.cvs-handle--x { top: 0; bottom: 0; width: calc(9px * var(--inv)); transform: translateX(-50%); cursor: col-resize; }
+.cvs-handle--y { left: 0; right: 0; height: calc(9px * var(--inv)); transform: translateY(-50%); cursor: row-resize; }
+.cvs-handle--x::before, .cvs-handle--y::before { content: ''; position: absolute; opacity: 0; transition: opacity 120ms; }
+.cvs-handle--x::before { left: 50%; top: 0; bottom: 0; border-left: calc(1px * var(--inv)) dashed var(--ui-guide); }
+.cvs-handle--y::before { top: 50%; left: 0; right: 0; border-top: calc(1px * var(--inv)) dashed var(--ui-guide); }
+.cvs-viewport:hover .cvs-handle::before { opacity: 0.6; }
+.cvs-handle:hover::before { opacity: 1; border-color: var(--ui-handle); border-style: solid; }
+
+.cvs-knob {
+  position: absolute; width: calc(9px * var(--inv)); height: calc(9px * var(--inv)); transform: translate(-50%, -50%);
+  background: var(--ui-surface); border: calc(1.5px * var(--inv)) solid var(--ui-handle); border-radius: calc(2px * var(--inv));
+  pointer-events: auto; cursor: move;
+}
+.cvs-handle--gutter { height: calc(20px * var(--inv)); cursor: ew-resize; opacity: 0; transition: opacity 120ms; }
+.cvs-viewport:hover .cvs-handle--gutter { opacity: 1; }
+.cvs-knob--n, .cvs-knob--s { cursor: ns-resize; }
+.cvs-knob--e, .cvs-knob--w { cursor: ew-resize; }
+.cvs-knob--nw, .cvs-knob--se { cursor: nwse-resize; }
+.cvs-knob--ne, .cvs-knob--sw { cursor: nesw-resize; }
+.cvs-knob--p1, .cvs-knob--p2 { cursor: crosshair; border-radius: 50%; }
+
+/* decor selection */
+.cvs-decor-sel {
+  position: absolute; box-sizing: content-box; padding: calc(3px * var(--inv));
+  margin: calc(-3px * var(--inv)) 0 0 calc(-3px * var(--inv));
+  outline: calc(1px * var(--inv)) solid var(--ui-handle); pointer-events: auto; cursor: move;
+}
+
+/* sections: hover outline, selection, grip, drop indicator */
+.cvs-outline { position: absolute; outline: calc(1px * var(--inv)) dashed var(--ui-guide); outline-offset: calc(2px * var(--inv)); }
+.cvs-outline.is-selected { outline: calc(2px * var(--inv)) solid var(--ui-handle); }
+.cvs-grip {
+  position: absolute; width: calc(12px * var(--inv)); height: calc(20px * var(--inv));
+  transform: translateX(calc(-100% - 4px * var(--inv))); pointer-events: auto; cursor: grab;
+  border-radius: calc(3px * var(--inv)); background-color: var(--ui-handle);
+  background-image: radial-gradient(circle, var(--ui-accent-text) 1.2px, transparent 1.4px);
+  background-size: calc(6px * var(--inv)) calc(6px * var(--inv)); background-position: center;
+}
+.cvs-drop { position: absolute; height: calc(3px * var(--inv)); transform: translateY(-50%); background: var(--ui-handle); border-radius: 2px; }
+
+/* snap guides and live readouts */
+.cvs-guide { position: absolute; background: var(--ui-handle); }
+.cvs-guide--x { width: calc(1px * var(--inv)); }
+.cvs-guide--y { height: calc(1px * var(--inv)); }
+.cvs-readout {
+  position: absolute; transform: translate(calc(12px * var(--inv)), calc(12px * var(--inv)));
+  padding: calc(2px * var(--inv)) calc(6px * var(--inv)); border-radius: calc(4px * var(--inv));
+  background: var(--ui-text); color: var(--ui-bg); font: calc(11px * var(--inv)) / 1.4 var(--ui-mono); white-space: nowrap;
+}
+
+/* X-ray: stream-order numbers */
+.cvs-badge {
+  position: absolute; transform: translate(calc(-100% - 2px * var(--inv)), 0);
+  min-width: calc(16px * var(--inv)); height: calc(16px * var(--inv)); padding: 0 calc(3px * var(--inv));
+  border-radius: calc(8px * var(--inv)); background: var(--ui-accent); color: var(--ui-accent-text);
+  font: 600 calc(10px * var(--inv)) / calc(16px * var(--inv)) var(--ui-font); text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cvs-handle::before, .cvs-handle--gutter { transition: none; }
+}
+
+/* print: only the pages, unscaled (spec 4.6) */
+@media print {
+  .cvs-toolbar, .cvs-overlay { display: none !important; }
+  .cvs-viewport { display: block !important; overflow: visible !important; box-shadow: none !important; }
+  .cvs-stage, .cvs-zoom, .cvs-host {
+    position: static !important; width: auto !important; height: auto !important;
+    margin: 0 !important; padding: 0 !important; transform: none !important; display: block !important;
+  }
+}

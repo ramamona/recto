@@ -117,10 +117,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .app-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--ui-surface); }
 .app-pane--canvas { background: var(--ui-desk); }
-.app-side { display: grid; grid-template-rows: minmax(0, 1fr) auto; border-left: 1px solid var(--ui-border); }
+.app-side { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; border-left: 1px solid var(--ui-border); }
 .app-splitter { cursor: col-resize; background: var(--ui-border); opacity: 0.5; }
 .app-splitter:hover, .app-splitter:focus-visible { opacity: 1; background: var(--ui-accent); }
-.app-tabs { display: none; }
 
 @media (max-width: 899px) {
   .app { grid-template-rows: var(--ui-top-h) auto minmax(0, 1fr); }
@@ -169,6 +168,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ui-group__title { margin: 0 0 6px; font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ui-muted); }
 
 /* ---------- Tabs ---------- */
+.app-tabs.ui-tabs { display: none; }
+@media (max-width: 899px) { .app-tabs.ui-tabs { display: flex; } }
 .ui-tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--ui-border); overflow-x: auto; scrollbar-width: none; }
 .ui-tab {
   height: 30px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent;
@@ -240,3 +241,48 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* Side pane regions (inspector above, check/ATS panels below) */
 .app-side__inspector { min-height: 0; display: flex; flex-direction: column; }
 .app-side__panels { min-height: 0; max-height: 45vh; display: flex; flex-direction: column; border-top: 1px solid var(--ui-border); }
+
+/* ---------- Task 10: top bar, banners, gallery, narrow-screen tabs ---------- */
+.app-tabs { display: none; } /* .ui-tabs (declared later above) would otherwise show them on wide screens */
+.app-top { overflow-x: auto; scrollbar-width: none; }
+.app-brand { font-weight: 700; letter-spacing: 0.02em; margin-right: 4px; }
+.app-doc { max-width: 240px; }
+.app-doc__name { overflow: hidden; text-overflow: ellipsis; }
+.app-badge { border: 0; cursor: pointer; flex: none; }
+.app-status { font-size: var(--ui-size-sm); white-space: nowrap; }
+.app-status.is-error { color: var(--ui-error); }
+.ui-menu__item[aria-current='true'] { font-weight: 600; }
+.ui-menu__item[aria-current='true']::before { content: '✓'; }
+.app-placeholder { margin: auto; padding: 16px; text-align: center; }
+.app-paste, .app-rename { width: 100%; }
+.app-checklist { margin: 8px 0 0; padding-left: 20px; }
+
+.app-banners { position: fixed; top: var(--ui-top-h); left: 0; right: 0; z-index: 900; display: grid; box-shadow: var(--ui-shadow); }
+.app-banners:empty { display: none; }
+
+.app-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); gap: 16px; }
+.app-gallery__card {
+  display: grid; gap: 4px; justify-items: start; padding: 10px; text-align: left; cursor: pointer;
+  border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-surface-2);
+}
+.app-gallery__card:hover { border-color: var(--ui-accent); }
+.app-gallery__name { font-weight: 600; }
+.app-gallery__desc { font-size: var(--ui-size-sm); }
+.app-gallery__empty { margin: 24px 0; text-align: center; }
+/* width matches THUMB_W in gallery.js; height is set per page size */
+.app-thumb { width: 184px; height: 260px; overflow: hidden; pointer-events: none; background: var(--ui-desk); box-shadow: var(--ui-page-shadow); margin-bottom: 6px; }
+.app-thumb__host { transform-origin: 0 0; }
+
+@media (max-width: 899px) {
+  .app-tabs { display: flex; }
+  .app-main { grid-auto-rows: minmax(0, 1fr); }
+  .app-main[data-tab='design'] { grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
+  .app-main[data-tab='design'] .app-side__panels, .app-main[data-tab='check'] .app-side__inspector { display: none; }
+  .app-main[data-tab='check'] .app-side__panels { max-height: none; border-top: 0; }
+  .app-side { border-left: 0; }
+  .app-status { display: none; }
+}
+
+@media print {
+  .app-banners { display: none !important; }
+}

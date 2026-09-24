@@ -1,0 +1,59 @@
+/* Inspector (Page / Theme / Section / Decor / CSS tabs) and the Check / ATS panels. Builds on app.css components. */
+
+/* the side pane is an auto-sized grid track: without min-width 0 long content widens the whole pane */
+.app-side__inspector, .app-side__panels { min-width: 0; }
+.insp-body, .pnl-body { flex: 1; min-height: 0; }
+.insp-body .ui-field { grid-template-columns: minmax(0, 1fr) auto; }
+.insp-body .ui-field > label { overflow-wrap: anywhere; }
+.insp-body:focus-visible, .pnl-body:focus-visible { box-shadow: inset var(--ui-focus); }
+
+.insp-hint { margin: 0 0 6px; color: var(--ui-muted); font-size: var(--ui-size-sm); }
+.insp-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.insp-text { width: 120px; }
+.insp-picker { max-width: 190px; }
+.ui-field .ui-select { max-width: 190px; }
+
+.insp-color { display: inline-flex; align-items: center; gap: 4px; }
+.insp-color .insp-hex { width: 84px; font-family: var(--ui-mono); font-size: var(--ui-size-sm); }
+.insp-color .is-empty { opacity: 0.35; }
+.insp-range { display: inline-flex; align-items: center; gap: 6px; }
+.insp-range input { width: 120px; }
+.insp-readout { min-width: 3em; text-align: right; font-variant-numeric: tabular-nums; font-size: var(--ui-size-sm); }
+
+.insp-col { padding: 6px 0 8px; border-bottom: 1px dashed var(--ui-border); margin-bottom: 6px; }
+.insp-col__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.insp-more > summary { cursor: pointer; padding: 4px 0; color: var(--ui-muted); font-size: var(--ui-size-sm); }
+
+.insp-order { margin: 0; padding: 0; list-style: none; counter-reset: order; }
+.insp-order li { display: flex; align-items: center; gap: 4px; padding: 3px 0; counter-increment: order; }
+.insp-order__name { flex: 1; }
+.insp-order__name::before { content: counter(order) '. '; color: var(--ui-muted); }
+
+.insp-css { width: 100%; min-height: 240px; }
+
+/* ---------- Panels ---------- */
+.pnl-count { margin-left: 2px; }
+.pnl-empty { margin: 0; padding: 16px 12px; color: var(--ui-ok); }
+.pnl-group { padding: 8px 12px 4px; }
+.pnl-issues { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.pnl-issue { padding: 6px 8px; border-left: 3px solid var(--ui-border); border-radius: var(--ui-radius-sm); background: var(--ui-surface-2); }
+.pnl-issue.is-error { border-left-color: var(--ui-error); }
+.pnl-issue.is-warn { border-left-color: var(--ui-warn); }
+.pnl-issue.is-info { border-left-color: var(--ui-info); }
+.pnl-issue__msg { margin: 0 0 4px; overflow-wrap: anywhere; }
+.pnl-issue__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pnl-issue__where { margin-right: auto; color: var(--ui-muted); font-size: var(--ui-size-sm); }
+.pnl-issue .is-stale { opacity: 0.45; filter: grayscale(1); }
+
+.pnl-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; }
+.pnl-note { flex: 1; color: var(--ui-muted); font-size: var(--ui-size-sm); }
+.pnl-text {
+  margin: 0 12px; padding: 8px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: var(--ui-size-sm)/1.5 var(--ui-mono); background: var(--ui-surface-2); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm);
+}
+.pnl-subtitle { padding: 12px 12px 0; }
+.pnl-fields { display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; margin: 0; padding: 0 12px 12px; font-size: var(--ui-size-sm); }
+.pnl-fields dt { color: var(--ui-muted); }
+.pnl-fields dd { margin: 0; overflow-wrap: anywhere; }
+.pnl-fields .is-missing { color: var(--ui-warn); }
+.pnl-sections { margin: 0; padding: 0; list-style: none; }

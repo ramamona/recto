@@ -1,0 +1,83 @@
+/* Source editor (src/ui/editor.js). The textarea and the highlight <pre> share one grid cell inside one
+   scroll container and must keep identical font metrics, padding and wrapping: never change weight or size here. */
+
+.app-pane--editor { position: relative; }
+
+.ed-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--ui-border); }
+
+.ed-scroll { flex: 1 1 auto; min-height: 0; background: var(--ui-surface); }
+.ed-stack {
+  --ed-gutter: calc(var(--ed-digits, 2) * 1ch + 22px);
+  display: grid; position: relative; min-height: 100%;
+  font: 13px/1.6 var(--ui-mono); letter-spacing: 0; tab-size: 2;
+}
+.ed-hl, .ed-input {
+  grid-area: 1 / 1; margin: 0; padding: 8px 12px 40vh 8px;
+  font: inherit; letter-spacing: inherit; tab-size: inherit;
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal;
+}
+.ed-hl { padding-left: calc(var(--ed-gutter) + 8px); color: var(--ui-text); pointer-events: none; }
+.ed-input {
+  margin-left: var(--ed-gutter); min-height: 100%; overflow: hidden; resize: none;
+  border: 0; border-radius: 0; outline: none; background: transparent;
+  color: transparent; caret-color: var(--ui-text); -webkit-text-fill-color: transparent;
+}
+.ed-input:focus-visible { box-shadow: none; }
+.ed-stack:focus-within { box-shadow: inset 2px 0 0 var(--ui-accent); }
+.ed-input::selection { background: var(--ui-accent-soft); }
+@media (forced-colors: active) { .ed-input { color: CanvasText; -webkit-text-fill-color: CanvasText; } .ed-hl { visibility: hidden; } }
+
+/* Lines and gutter */
+.ed-ln { position: relative; }
+.ed-num {
+  position: absolute; top: 0; left: calc(-1 * var(--ed-gutter) - 8px); width: var(--ed-gutter);
+  padding-right: 10px; text-align: right; color: var(--ui-muted); opacity: 0.7; user-select: none;
+}
+.ed-dot {
+  position: absolute; left: 4px; top: 0.55em; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ui-info); pointer-events: auto; cursor: pointer;
+}
+.ed-dot.is-error { background: var(--ui-error); }
+.ed-dot.is-warn { background: var(--ui-warn); }
+.ed-ln.is-revealed { animation: ed-flash 1.4s ease-out; }
+@keyframes ed-flash { from { background: var(--ui-accent-soft); } to { background: transparent; } }
+
+/* Highlight classes: colour, background and decoration only */
+.ed-ln--section, .ed-ln--name { background: color-mix(in srgb, var(--ui-accent-soft) 55%, transparent); }
+.ed-mark, .ed-pipe, .ed-sep, .ed-bullet, .ed-id { color: var(--ui-muted); }
+.ed-name, .ed-section { color: var(--ui-accent); }
+.ed-f0 { color: var(--ui-accent); }
+.ed-f1 { color: var(--ui-ok); }
+.ed-f2 { color: var(--ui-warn); }
+.ed-f3 { color: var(--ui-info); }
+.ed-header { color: var(--ui-text); }
+.ed-bullet { color: var(--ui-accent); }
+.ed-rule { color: var(--ui-muted); text-decoration: line-through; }
+.ed-ignored { color: var(--ui-muted); text-decoration: line-through; }
+.ed-strong { text-decoration: underline 2px color-mix(in srgb, currentColor 45%, transparent); }
+.ed-em { font-style: italic; }
+.ed-code { background: var(--ui-surface-2); border-radius: 3px; }
+.ed-link { color: var(--ui-info); text-decoration: underline; }
+.ed-esc { color: var(--ui-muted); }
+
+/* Caret hint */
+.ed-hint {
+  display: flex; align-items: center; gap: 10px; min-height: 28px; padding: 4px 10px;
+  border-top: 1px solid var(--ui-border); font-size: var(--ui-size-sm); color: var(--ui-muted);
+}
+.ed-hint__ctx { color: var(--ui-text); white-space: nowrap; }
+.ed-hint__issue { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.ed-hint__msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ed-hint__issue .ed-dot { position: static; flex: none; pointer-events: none; }
+.ed-hint__pos { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ed-link-btn { flex: none; padding: 0; border: 0; background: none; color: var(--ui-accent); text-decoration: underline; cursor: pointer; }
+
+/* Popovers (native popover, positioned by editor.js) */
+.ed-pop { position: fixed; inset: auto; margin: 0; max-width: calc(100vw - 16px); }
+.ed-syntax { width: 460px; padding: 4px 4px 8px; }
+.ed-syntax__body { max-height: min(420px, 70vh); }
+.ed-syntax table { width: 100%; border-collapse: collapse; font-size: var(--ui-size-sm); }
+.ed-syntax th, .ed-syntax td { padding: 5px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--ui-border); }
+.ed-syntax th { font-weight: 500; color: var(--ui-muted); width: 40%; }
+.ed-syntax code { font-family: var(--ui-mono); white-space: pre-wrap; }
+.ed-syntax tr.is-hit { background: var(--ui-warn-soft); }
