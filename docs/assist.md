@@ -64,3 +64,43 @@ Recto checks a pasted or fetched posting against a set of heuristics before you 
 ## Job links
 
 Greenhouse, Lever and Ashby links are fetched directly (their APIs allow it from any browser). Any other link works when you're running Recto locally via `node serve.js`, through its built-in proxy — never on a plain static host, since a static host can't safely fetch on your behalf (see [self-hosting.md](self-hosting.md)). Pasting the job text directly always works, everywhere.
+
+## ATS score: what it checks
+
+The **ATS** chip in the top bar (`ATS 86 · B`) is always there — no job, no AI, nothing sent anywhere. It's a deterministic 0–100 score from eight weighted checks (`src/ats/score.js`); clicking it opens the **Review** tab with every check, what was deducted and why, a Locate/Fix for each item, and "What the ATS sees" — a mock applicant form built the way a parser would read your CV, with missing or misparsed fields called out by reason. Grades: **A** ≥ 90, **B** ≥ 80, **C** ≥ 70, **D** ≥ 60, else **F**.
+
+| Check | Weight | Full marks when | Deducted for |
+|---|---|---|---|
+| `text` | 10 | extracted text ≥ 300 characters | proportionally below that; critical under 100 chars |
+| `headings` | 20 | Experience, Education and Skills present with dictionary headings | −6 per missing required section, −2 per non-standard heading (max −6), +1 per optional section (Summary, Projects, Certifications) present |
+| `contact` | 15 | a valid email (8 pts), a phone (4 pts) and a location (3 pts) | the corresponding points; an invalid or missing email is critical |
+| `order` | 20 | one text column throughout, header rendered first | −10 for multiple text columns, −5 when a section is split across columns, −5 when the header isn't first in reading order |
+| `entries` | 15 | every experience/education entry has a title, an organisation and a parseable date | proportional to the share of complete entries |
+| `chars` | 10 | standard font presets (5 pts) and no special/invisible characters (5 pts) | −2 for a custom uploaded font (info-level: embedded fonts usually extract fine), −3 for invisible characters, −2 for other special characters |
+| `hidden` | 5 | nothing an ATS would treat as hidden | −3 for low-contrast text, −2 for text under 6 pt, −2 for custom CSS that hides or moves text |
+| `length` | 5 | 1–2 pages, bullets ≤ 200 characters | −2 per page over 2, up to −3 total for overlong bullets |
+
+The score is the sum of what each check earns (never negative, never over its weight). Checks reuse preflight's own issues where one already covers the same ground, so a check's items link to the same Locate/Fix as the Check tab always has.
+
+## Job evaluation
+
+With a job pasted or fetched, the **Job** tab evaluates it locally the moment it's parsed — no AI needed (`evaluateJob`, `src/jobs/evaluate.js`), inspired by career-ops' two-pass method:
+
+- **Role summary** — archetype, seniority and remote/hybrid/onsite, classified from the title and text, plus a one-line tl;dr.
+- **Gates**, shown above the requirement table when they apply: **Liveness** (closed when a URL job's fetch was 404/410 or the text says the role was filled — pasted text is always "unknown"), **Geo-mismatch** (the posting claims remote but the body has a binding attendance requirement, quoted verbatim), **Work authorization** (✅ sponsors / ➖ not needed / ⚠️ unstated / ⛔ no sponsorship — computed only once your [candidate profile](#candidate-profile) says something about authorization), **Deal-breakers** from your profile matched in the JD, quoted.
+- **Requirement table (two-pass)** — pass 1 reads only the JD and assigns each requirement an *importance* (critical/stated, high/structural, meaningful/inferred) before your CV is looked at; pass 2 matches it against your CV as strong / partial / missing / n/a, with the CV line quoted as evidence (Locate jumps to it) and the JD's own phrasing alongside it. The table keeps every critical/high row and up to 12 rows total; a "dropped" count says how many lower-priority rows were left out.
+- **Score (1–5)** — weighted coverage of the table (critical rows count 3×, high 2×, meaningful 1×; a strong match counts 1, partial 0.5), mapped to 1–5. ⛔ no-sponsorship or a closed posting caps the score at 1.5; a matched deal-breaker caps it at 2.0. ≥ 4.0 recommends **apply**, ≥ 3.0 **consider**, else **skip** — you can always override.
+- **Legitimacy (G)** — the same heuristics as [Legitimacy flags](#legitimacy-flags) above, plus a check for imperative text in the JD aimed at an AI reader or reviewer (prompt injection), quoted when found.
+- **Refine with AI**, when connected, upgrades the same report with AI-read evidence and wording; AI evidence must still quote a real CV line (validated by the fabrication guard) or it's dropped. Every evaluation — local or AI-refined — is saved on the job in your tracker with its score and recommendation.
+
+### Candidate profile
+
+Open **Candidate profile** from the Job tab or the command bar (`⌘K` / `Ctrl K`) to tell Recto where you're authorized to work, whether you need sponsorship, your target locations and remote preference, target roles, deal-breakers and a minimum salary. Anything you leave blank simply skips that gate — Recto never guesses. It's stored locally (`localStorage['recto:profile']`), never sent anywhere except as part of a Refine-with-AI request you've already consented to.
+
+### Jobs board
+
+**Jobs** in the top bar (or "Jobs board" in the command bar) opens a full-screen board with columns **Saved · Applied · Interview · Offer · Rejected · No response** (plus a collapsed **Skipped**). Drag a card between columns, or focus one and press **←/→**; every move is recorded with a date in the job's status history. A card **Applied** for 21 days with no change gets a "Move to No response?" hint — never automatic. Click a card for its detail drawer: the evaluation report, editable notes, a status timeline, linked CV documents, the source link and delete. The board header has per-column counts, search, and JSON export/import.
+
+## Command bar
+
+Press **⌘K** (macOS) or **Ctrl K** (elsewhere) anywhere in the app for a searchable list of actions: AI features (Improve CV, Rewrite selection, Tailor to the active job, Evaluate it, draft a cover letter), app actions (Templates, Jobs board, exports, Fit to N pages, toggle X-ray, Connect AI, your candidate profile) and jumping to any section of your CV. Type to filter, arrow keys to move, Enter to run; your most recent commands sort first when the box is empty. An action only shows up once the feature it needs is available — nothing appears disabled, unusable items just aren't listed.

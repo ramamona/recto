@@ -12,6 +12,11 @@
 //   .job-form__bar button           Job tab: "Analyze" button
 //   .job-gauge__num                 Job tab: match gauge's number (SVG <text>)
 //   .job-actions button (1..4)      Job tab: Evaluate with AI, Tailor CV, Draft cover letter, Save to tracker
+//   [data-action="ats-chip"]        Top bar: always-on ATS score chip (review-jobs spec §4)
+//   .rv-checks .rv-check            Review tab: one <li> per weighted ATS check (src/ats/score.js, 8 checks)
+//   .job-reqs tbody tr              Job tab: local (no-AI) two-pass requirement table, renders after Analyze
+//   .board[open], [data-job=ID]     Jobs board dialog and its cards (draggable, also movable with arrow keys)
+//   .cmd-bar[open], .cmd-bar__input, .cmd-bar__item   Command bar (Cmd/Ctrl-K), its filter box and result rows
 
 import http from 'node:http'
 import { createServer, listen } from '../serve.js'
@@ -235,6 +240,64 @@ async function coverLetterFlow(page, problems) {
   if (unexpected.length) problems.push(`cover letter doc has ${unexpected.length} unexpected diagnostic(s): ${JSON.stringify(unexpected)}`)
 }
 
+// review-jobs spec §1.1: the ATS chip is always visible with a score and grade, no job and no AI needed.
+async function atsChipFlow(page, problems) {
+  await waitUntil(page, `document.querySelector('[data-action="ats-chip"]')`, { what: 'ATS chip' })
+  const text = await page.evaluate(`document.querySelector('[data-action="ats-chip"]').textContent`, { awaitPromise: false })
+  if (!/ATS \d+.*[A-F]/.test(text)) problems.push(`ATS chip does not show a score and grade: ${JSON.stringify(text)}`)
+}
+
+// review-jobs spec §2: the Review tab lists all 8 weighted ats/score.js checks.
+async function reviewFlow(page, problems) {
+  await page.evaluate("window.recto.ctx.openPanel ? window.recto.ctx.openPanel('review') : window.recto.store.setUi({ panel: 'review' })", { awaitPromise: false })
+  await waitUntil(page, `document.querySelectorAll('.rv-checks .rv-check').length === 8`, { what: '8 ATS checks in the Review tab' })
+}
+
+// review-jobs spec §3: pasting a JD renders the local (no-AI) two-pass requirement table straight away.
+async function jobEvalTableFlow(page, problems) {
+  await page.evaluate("window.recto.ctx.openPanel ? window.recto.ctx.openPanel('job') : window.recto.store.setUi({ panel: 'job' })", { awaitPromise: false })
+  await waitUntil(page, `document.getElementById('job-input')`, { what: 'job input' })
+  await page.evaluate(`(() => {
+    const el = document.getElementById('job-input')
+    el.value = ${JSON.stringify(JD)}
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  })()`, { awaitPromise: false })
+  await click(page, '.job-form__bar button')
+  await waitUntil(page, `document.querySelectorAll('.job-reqs tbody tr').length > 0`, { what: 'job evaluation table renders' })
+}
+
+// review-jobs spec §5: the board opens, and moving a card (arrow keys stand in for drag-and-drop in headless
+// Chrome) from Applied to Rejected persists through the tracker.
+async function boardFlow(page, problems) {
+  const id = await page.evaluate(`window.recto.ctx.tracker.save({ title: 'Backend Engineer', company: 'Acme', status: 'applied' }).id`, { awaitPromise: false })
+  await page.evaluate('window.recto.ctx.openJobsDialog()', { awaitPromise: false })
+  await waitUntil(page, `document.querySelector('.board[open]')`, { what: 'board dialog opens' })
+  const card = `document.querySelector('[data-job="${id}"]')`
+  await waitUntil(page, card, { what: 'seeded card renders' })
+  await page.evaluate(`${card}.focus()`, { awaitPromise: false })
+  for (let i = 0; i < 3; i++) { // saved < applied < interview < offer < rejected: 3 steps right of applied
+    await page.evaluate(`${card}.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))`, { awaitPromise: false })
+  }
+  const status = await page.evaluate(`window.recto.ctx.tracker.get(${JSON.stringify(id)})?.status`, { awaitPromise: false })
+  if (status !== 'rejected') problems.push(`moving the card 3 steps right of "applied" landed on "${status}", expected "rejected"`)
+  await click(page, '[data-action="board-close"]').catch(() => {})
+}
+
+// review-jobs spec §4: Cmd/Ctrl-K opens the command bar, filters to "Jobs board" and runs it.
+async function commandBarFlow(page, problems) {
+  await page.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, metaKey: true, bubbles: true, cancelable: true }))`, { awaitPromise: false })
+  await waitUntil(page, `document.querySelector('.cmd-bar[open]')`, { what: 'command bar opens' })
+  await page.evaluate(`(() => {
+    const input = document.querySelector('.cmd-bar__input')
+    input.value = 'Jobs board'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })()`, { awaitPromise: false })
+  await waitUntil(page, `document.querySelector('.cmd-bar__item')?.textContent.includes('Jobs board')`, { what: '"Jobs board" is the top match' })
+  await page.evaluate(`document.querySelector('.cmd-bar__input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))`, { awaitPromise: false })
+  await waitUntil(page, `document.querySelector('.board[open]')`, { what: 'board opens from the command bar' })
+  await click(page, '[data-action="board-close"]').catch(() => {})
+}
+
 // ---------------- main ----------------
 
 async function main() {
@@ -250,7 +313,10 @@ async function main() {
       await waitUntil(page, 'window.recto?.store?.state?.content', { timeout: READY_TIMEOUT, what: 'app ready' })
       await connectStubProvider(page, stubUrl)
       // each flow needs the previous one's doc/panel state; a broken flow fails fast but the rest still run
-      for (const [name, flow] of [['suggest', suggestFlow], ['job', jobFlow], ['evaluate', evaluateFlow], ['tailor', tailorFlow], ['cover letter', coverLetterFlow]]) {
+      for (const [name, flow] of [
+        ['suggest', suggestFlow], ['job', jobFlow], ['evaluate', evaluateFlow], ['tailor', tailorFlow], ['cover letter', coverLetterFlow],
+        ['ATS chip', atsChipFlow], ['review checks', reviewFlow], ['job evaluation table', jobEvalTableFlow], ['jobs board', boardFlow], ['command bar', commandBarFlow],
+      ]) {
         try {
           await flow(page, problems)
         } catch (err) {
@@ -272,7 +338,7 @@ async function main() {
     for (const p of problems) console.error(`  - ${p}`)
     process.exitCode = 1
   } else {
-    console.log('assist-check: all flows passed (suggest, job match, evaluate, tailor, cover letter), no console errors')
+    console.log('assist-check: all flows passed (suggest, job match, evaluate, tailor, cover letter, ATS chip, review checks, job evaluation table, jobs board, command bar), no console errors')
   }
 }
 

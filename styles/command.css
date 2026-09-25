@@ -1,0 +1,12 @@
+/* Command bar (review-jobs spec §4): Cmd/Ctrl-K palette. */
+.cmd-bar { width: min(560px, calc(100vw - 32px)); top: 18vh; margin-top: 0; }
+.cmd-bar::backdrop { background: rgb(0 0 0 / 0.35); }
+.cmd-bar__box { display: flex; flex-direction: column; max-height: min(60vh, 480px); }
+.cmd-bar__input { border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 10px 10px 0 0; padding: 14px 16px; font-size: 15px; }
+.cmd-bar__input:focus { outline: none; box-shadow: none; }
+.cmd-bar__list { list-style: none; margin: 0; padding: 6px; overflow: auto; }
+.cmd-bar__item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--ui-radius); cursor: pointer; }
+.cmd-bar__item.is-active { background: var(--ui-accent-soft); }
+.cmd-bar__group { flex: 0 0 auto; min-width: 44px; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ui-muted); }
+.cmd-bar__label { flex: 1 1 auto; }
+.cmd-bar__empty { padding: 10px; color: var(--ui-muted); }

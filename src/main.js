@@ -61,7 +61,8 @@ async function printMode(params) {
 // ---------- app mode (spec 5) ----------
 // UI modules load dynamically so print mode never depends on them.
 
-const TABS = { write: ['editor'], design: ['canvas', 'side'], check: ['side'] }
+// Narrow-screen tabs (review-jobs spec §4); Review and Job show the right pane full height on that panel.
+const TABS = { write: ['editor'], page: ['canvas', 'side'], review: ['side'], job: ['side'] }
 
 // A missing mount module (mid-build) leaves a placeholder; an error inside a mount is still an error.
 async function mountOptional(path, name, root, store, ctx) {
@@ -84,10 +85,10 @@ async function mountOptional(path, name, root, store, ctx) {
 }
 
 async function appMode() {
-  const [i18n, dom, { createStore }, storageMod, { runPreflight }, { mountTopbar }, aiDialog, { openJobsDialog }, { createTracker }] = await Promise.all([
+  const [i18n, dom, { createStore, panelTab }, storageMod, { runPreflight }, { mountTopbar }, aiDialog, { createTracker }, ats] = await Promise.all([
     import('./ui/i18n.js'), import('./ui/dom.js'), import('./store.js'), import('./io/storage.js'),
-    import('./preflight/rules.js'), import('./ui/topbar.js'), import('./ui/ai-dialog.js'), import('./ui/jobs-dialog.js'),
-    import('./jobs/tracker.js'),
+    import('./preflight/rules.js'), import('./ui/topbar.js'), import('./ui/ai-dialog.js'), import('./jobs/tracker.js'),
+    import('./ats/score.js').catch(err => console.warn('recto: ATS score unavailable', err)), // the app still runs without the score
   ])
   // OpenRouter sign-in returns with ?code=: drop it from the URL (and history) before anything else
   const oauth = aiDialog.takeOAuthCode(location.href)
@@ -97,7 +98,7 @@ async function appMode() {
   await i18n.loadLocale(navigator.language)
 
   const storage = storageMod.createBrowserStorage()
-  const store = createStore({ storage, runPreflight, locale: navigator.language })
+  const store = createStore({ storage, runPreflight, atsReport: ats?.atsReport, locale: navigator.language })
   // the autosave is debounced; write it before the page goes away (saveDoc is synchronous localStorage)
   on(window, 'pagehide', () => store.flush())
   on(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') store.flush() })
@@ -131,8 +132,10 @@ async function appMode() {
   ctx.ai = aiDialog.createAi(ctx)
   ctx.tracker = createTracker()
   ctx.assistQueue = new Map() // docId → suggestion cards waiting for that document (tailoring)
+  // right-pane tab by name (design|review|job|suggest); on narrow screens also brings the pane into view
+  ctx.openPanel = panel => store.setUi({ panel, tab: panelTab(panel) })
   ctx.openAiDialog = opts => aiDialog.openAiDialog(store, ctx, opts)
-  ctx.openJobsDialog = () => openJobsDialog(store, ctx, { tracker: ctx.tracker })
+  ctx.openJobsDialog = (...a) => import('./ui/jobs-board.js').then(m => m.openJobsBoard(store, ctx, ...a))
   window.recto = { store, ctx } // console access for debugging
 
   const lastId = store.state.docs[0]?.id
@@ -152,8 +155,8 @@ async function appMode() {
   const topbar = mountTopbar($('#topbar'), store, ctx)
   ctx.canvas = await mountOptional('./ui/canvas.js', 'mountCanvas', $('#canvas'), store, ctx)
   ctx.editor = await mountOptional('./ui/editor.js', 'mountEditor', $('#editor'), store, ctx)
-  await mountOptional('./ui/inspector.js', 'mountInspector', $('#inspector'), store, ctx)
-  await mountOptional('./ui/panels.js', 'mountPanels', $('#panels'), store, ctx)
+  await mountOptional('./ui/panels.js', 'mountPanels', $('#side'), store, ctx)
+  import('./ui/command-bar.js').then(m => m.mountCommandBar(store, Object.assign(ctx, { topbar }))).catch(err => console.warn('recto: command bar unavailable', err))
 
   mountTabs(store, ctx, dom)
   mountSplitters($('#main'), { $, $$, on, clamp })
@@ -198,7 +201,7 @@ async function appMode() {
   }
 }
 
-// Below 900 px the three panes become the tabs Write · Design · Check (state.ui.tab).
+// Below 900 px the panes become the tabs Write · Page · Review · Job (state.ui.tab; store.js keeps ui.panel in step).
 function mountTabs(store, ctx, { h, $, on }) {
   const tabs = Object.keys(TABS).map(tab => h('button', {
     class: 'ui-tab', type: 'button', role: 'tab', dataset: { tab }, 'aria-controls': TABS[tab][0],

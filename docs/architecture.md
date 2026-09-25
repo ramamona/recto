@@ -40,6 +40,11 @@ src/preflight/              pure
   contrast.js               colour parsing, compositing, WCAG contrast
   ats.js                    extractText / extractFields: what an ATS reads, in stream order
 
+src/ats/                    pure
+  score.js                  atsReport({ source, doc, layout, report, placement, issues, lang }) → { score, grade, checks, fields }:
+                             eight weighted checks (text, headings, contact, order, entries, chars, hidden, length) reusing
+                             preflight issues where they overlap, plus the mock applicant form (`fields`) an ATS would read
+
 src/io/
   jsonresume.js             pure: toJsonResume, fromJsonResume
   plaintext.js              pure: fromPlainText(text, lang) → { content, notes }; pasted or extracted CV text → Recto Markdown draft
@@ -58,35 +63,61 @@ src/jobs/                   pure
   parse.js                    parseJob(text): postings → { title, company, location, requirements, keywords, salary?, postedAt?, signals }; keywordsIn/canonicalTokens (a ~140-term tech/soft-skill vocabulary plus capitalisation heuristics) back both parsing and matching
   match.js                     matchCv(cv, job): the local Recto match estimate (keywords 55%, requirements 20%, parseability 15%, essentials 10%), no AI
   legitimacy.js                checkLegitimacy(job): heuristic flags (stale/no posting date, reposted, payment or ID requests, messaging-app redirects, implausible salary, generic text, email/domain mismatch, urgency language) → ok/caution/red-flag
-  tracker.js                   createTracker(storage): jobs in localStorage['recto:jobs'], CRUD, evaluations, export/import JSON
+  evaluate.js                  evaluateJob({ source, doc, layout, issues }, job, { profile, now, liveness }) → the career-ops-style Evaluation:
+                                role summary, gates (liveness, geo-mismatch, work authorization, deal-breakers), a two-pass
+                                requirement table (importance from the JD alone, then matched against the CV with quoted evidence),
+                                a 1–5 score capped by the gates, recommendation, and legitimacy incl. a prompt-injection check
+  tracker.js                   createTracker(storage): jobs in localStorage['recto:jobs'], CRUD, evaluations (addEvaluation), export/import
+                                JSON; STATUSES incl. 'no-response', statusHistory per job, staleApplied(job, now, days=21)
   fetch.js                     fetchJob(url): Greenhouse/Lever/Ashby public APIs, then the local /api/fetch proxy (serve.js), then an injected webFetch, else rejects with { code: 'needs-paste' }
+
+src/profile.js               pure; localStorage['recto:profile']: loadProfile/saveProfile/normalizeProfile — authorized
+                              countries, sponsorship, locations, remote preference, target roles, deal-breakers, salary floor.
+                              An empty field means that gate is skipped in evaluateJob, never guessed.
 
 src/suggest/
   local.js                   pure: localSuggestions(source, doc, lang) — deterministic bullet tips (weak opener, no metric, passive voice, filler words, long bullet, repeated verb) with no AI; English-only rules skip other languages
 
 src/ui/
   dom.js  i18n.js           DOM helpers (h, $, on …); t(key, vars) over locales/*.json
-  topbar.js                 documents, open/save, import/export (including uploaded .pdf/.docx/.txt/.md/.html/.rtf/.json via src/io/extract.js), templates, undo/redo, preflight badge, save status
+  topbar.js                 documents, open/save, import/export (including uploaded .pdf/.docx/.txt/.md/.html/.rtf/.json via src/io/extract.js), templates, undo/redo, print, ATS/match/score chips, save status
   editor.js                 source editor: textarea over a highlighted <pre>, gutter markers, insert menu, syntax popover
   canvas.js                 render loop, zoom, rulers, overlay, section selection and drag, ATS X-ray
   handles.js  decor-tools.js margin/gutter/column handles; drawing and editing decor
-  inspector.js              Page, Theme, Section, Decor and CSS tabs
-  panels.js                 Check and ATS panels
+  inspector.js              Design tab: Page, Theme, Section, Decor and CSS sub-tabs; makeTabs, shared by panels.js
+  panels.js                 right-pane frame: the full-height tab strip Design · Review · Job · Suggest (state.ui.panel);
+                             mounts inspector.js, review-panel.js, job-panel.js, assist-panel.js and shows the one selected;
+                             exposes ctx.openPanel(name) for the top-bar chips and the command bar
+  review-panel.js            Review tab: the ATS score ring/grade, the eight weighted checks with their items (Locate/Fix),
+                             "What the ATS sees" mock form, then the existing preflight list and the ATS X-ray text
   gallery.js                template gallery with live thumbnails
   import-review.js          converted-Markdown editor next to a live preview in the current layout, with the converter's low-confidence notes; "Import" creates a new document
   ai-dialog.js               AI connections dialog (top bar): provider cards, model list, test connection, remember-on-this-device, and the per-provider first-use consent prompt
-  jobs-dialog.js              job tracker dialog: saved jobs by status, local/AI scores, linked documents, export/import
-  assist-panel.js             Suggest tab: AI diff cards (word-level LCS diff, accept/reject/edit per card, "Accept all safe") plus src/suggest/local.js's deterministic tips
-  job-panel.js                Job tab: paste a link or text → parseJob/fetchJob, the match gauge, legitimacy flags, and the AI actions (Evaluate, Tailor CV, Draft cover letter, Save to tracker)
+  jobs-dialog.js              (superseded by jobs-board.js; kept only as dead code — nothing imports it any more)
+  jobs-board.js               openJobsBoard(store, ctx): full-screen board (spec §5) — 6 columns + collapsed Skipped,
+                              drag-and-drop plus ←/→ keyboard moves (both record a statusHistory entry), stale-applied
+                              hint, detail drawer, header search/counts/export/import; replaces jobs-dialog.js's role
+  assist-panel.js             Suggest tab: AI diff cards (word-level LCS diff, accept/reject/edit per card, "Accept all safe") plus src/suggest/local.js's deterministic tips; also sets ctx.runAssist
+  job-panel.js                Job tab: paste a link or text → parseJob/fetchJob, the match gauge, legitimacy flags, the
+                              local evaluateJob report (rendered as soon as a job is parsed, no AI needed), "Refine with
+                              AI", and the AI actions (Evaluate, Tailor CV, Draft cover letter, Save to tracker); also
+                              registers ctx.openProfileDialog
+  profile-dialog.js           openProfileDialog(ctx): candidate profile form over src/profile.js
+  command-bar.js              mountCommandBar(store, ctx): Cmd/Ctrl-K palette over AI actions, app actions and "go to
+                              section", fuzzy-filtered, recent commands first; an action whose ctx function isn't
+                              wired up yet is left out of the list rather than shown disabled
 
-styles/                     app.css, editor.css, canvas.css, inspector.css (app UI); cv.css (the pages)
+styles/                     app.css, editor.css, canvas.css, inspector.css, assist.css, board.css, command.css (app UI); cv.css (the pages)
 locales/en.json             UI strings (flat keys)
 templates/                  index.json + one JSON file per template
 samples/sample.cv.json      first-run document and smoke-test input
 cli/recto.js  cli/chrome.js CLI; minimal DevTools-protocol driver over --remote-debugging-pipe
 scripts/smoke.js            every template through print mode and PDF
 scripts/render-check.js     pagination and paint checks on generated documents
-scripts/assist-check.js     end-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server; no real provider is ever contacted
+scripts/assist-check.js     end-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server (no real
+                            provider is ever contacted): AI suggestions, job match/evaluate/tailor/cover-letter, the
+                            always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs
+                            board (drag/keyboard move persists a status change) and the command bar
 test/*.test.js              node --test
 ```
 
@@ -147,7 +178,7 @@ The pages live in a shadow root whose stylesheet stack is `cv.css`, then the the
 | `npm test` (`node --test`) | Parser grammar and edge cases, dates, categories, layout normalization, migration, ops and section config, templates, content edits, pagination, theme CSS, contrast, every preflight rule and its fix, ATS text, JSON Resume round trip, paste import, remix, the store, the server, locale key parity, and the security scan |
 | `npm run smoke` | Every template renders the sample with zero preflight errors, within its target pages and with at least 8 % free on the last page, with no overflow and no paint-invariant violation. The PDF page count matches, and with `pdftotext` installed, the PDF text has the name, email and section titles in placement order |
 | `node scripts/render-check.js` | Pagination and the paint invariant on generated documents (long sections, multi-page, columns) |
-| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server: suggest, accept/reject, tailor, evaluate, cover letter, the match gauge and the tracker. No real provider is ever contacted |
+| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server: suggest, accept/reject, tailor, evaluate, cover letter, the match gauge, the tracker, the always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs board (drag/keyboard move persists) and the command bar. No real provider is ever contacted |
 
 CI runs `npm test` and `npm run smoke` on `ubuntu-latest` with Node 22, `fonts-liberation` and `poppler-utils`.
 

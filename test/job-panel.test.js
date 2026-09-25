@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isJobUrl, probeProxy, mergeJob, withSignal, latestEvaluation } from '../src/ui/job-panel.js'
+import { isJobUrl, probeProxy, mergeJob, withSignal, latestEvaluation, gateBanners, evaluationRecord } from '../src/ui/job-panel.js'
+import { toProfile, splitList } from '../src/ui/profile-dialog.js'
 
 test('isJobUrl: a single http(s) link, not pasted text', () => {
   assert.equal(isJobUrl('https://jobs.lever.co/acme/123'), true)
@@ -40,9 +41,46 @@ test('withSignal injects the abort signal into every complete call', async () =>
   assert.equal(typeof c.listModels, 'function')
 })
 
-test('latestEvaluation picks the newest AI evaluation, ignoring local scores', () => {
-  const job = { evaluations: [{ kind: 'ai', score: 3, at: '1' }, { kind: 'local', score: 80, at: '2' }, { kind: 'ai', score: 4, at: '3' }] }
+test('latestEvaluation picks the newest AI evaluation by source, ignoring local and old-shape entries', () => {
+  const job = { evaluations: [{ source: 'ai', score: 3, rows: [] }, { source: 'local', score: 4.2 }, { source: 'ai', score: 4, rows: [] }, { kind: 'ai', score: 5 }] }
   assert.equal(latestEvaluation(job).score, 4)
-  assert.equal(latestEvaluation({ evaluations: [{ kind: 'local', score: 70 }] }), null)
+  assert.equal(latestEvaluation({ evaluations: [{ source: 'local', score: 3 }] }), null)
   assert.equal(latestEvaluation(null), null)
+})
+
+test('gateBanners: one banner per computed gate, with level and verbatim quote', () => {
+  const gates = {
+    liveness: { status: 'closed', quote: 'We are no longer accepting applications.' },
+    geo: { mismatch: true, quote: '3 days per week in our Berlin office' },
+    workAuth: { tier: 'no-sponsorship', quote: 'We are unable to offer visa sponsorship.' },
+    dealBreakers: [{ term: 'crypto', quote: 'Our crypto trading desk' }]
+  }
+  assert.deepEqual(gateBanners(gates).map(b => [b.id, b.level, b.quote]), [
+    ['liveness', 'error', 'We are no longer accepting applications.'],
+    ['geo', 'warn', '3 days per week in our Berlin office'],
+    ['workAuth', 'error', 'We are unable to offer visa sponsorship.'],
+    ['dealBreaker', 'error', 'Our crypto trading desk']
+  ])
+  assert.deepEqual(gateBanners(gates).at(-1).vars, { term: 'crypto' })
+  // null = not computed: no geo banner, a profile hint instead of work auth, nothing for deal-breakers
+  const bare = gateBanners({ liveness: { status: 'unknown', quote: '' }, geo: null, workAuth: null, dealBreakers: null })
+  assert.deepEqual(bare.map(b => [b.id, b.level, b.key]), [['liveness', 'info', 'eval.gate.liveness.unknown'], ['workAuth', 'info', 'eval.gate.workAuth.none']])
+  const good = gateBanners({ liveness: { status: 'open', quote: '' }, geo: { mismatch: false, quote: '' }, workAuth: { tier: 'sponsors', quote: 'We sponsor visas' }, dealBreakers: [] })
+  assert.deepEqual(good.map(b => b.level), ['ok', 'ok', 'ok'])
+  assert.deepEqual(gateBanners(undefined), [])
+})
+
+test('evaluationRecord drops the bulky match estimate and keeps the report', () => {
+  const ev = { source: 'ai', score: 3.8, recommendation: 'consider', rows: [{ requirement: 'Go' }], match: { score: 70, present: [] } }
+  const rec = evaluationRecord(ev)
+  assert.equal(rec.match, undefined)
+  assert.equal(rec.kind, 'ai')
+  assert.deepEqual([rec.source, rec.score, rec.recommendation, rec.rows.length], ['ai', 3.8, 'consider', 1])
+})
+
+test('profile form: lists split on commas and new lines, blanks become unset', () => {
+  assert.deepEqual(splitList(' DE, US\nFR ,, '), ['DE', 'US', 'FR'])
+  const p = toProfile({ authorizedIn: 'DE, FR', needsSponsorship: true, locations: 'Berlin', remote: 'hybrid', targetRoles: '', dealBreakers: 'crypto\ngambling', salaryMin: '', currency: ' ' })
+  assert.deepEqual(p, { authorizedIn: ['DE', 'FR'], needsSponsorship: true, locations: ['Berlin'], remote: 'hybrid', targetRoles: [], dealBreakers: ['crypto', 'gambling'] })
+  assert.equal(toProfile({ salaryMin: '65000', currency: 'EUR' }).salaryMin, 65000)
 })

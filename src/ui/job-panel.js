@@ -1,10 +1,13 @@
-// Job tab (assist spec §7): paste a job link or description → job card, Recto match estimate, legitimacy flags,
-// and the AI actions Evaluate / Tailor CV / Draft cover letter / Save to tracker.
+// Job tab (assist spec §7, review-jobs spec 3): paste a job link or description → job card, Recto match estimate,
+// the local career-ops evaluation report (gates, requirement table, ★ score, legitimacy) and the AI actions
+// Refine evaluation / Tailor CV / Draft cover letter / Save to tracker.
 import { h, svg, debounce } from './dom.js'
 import { fetchJob } from '../jobs/fetch.js'
 import { parseJob } from '../jobs/parse.js'
 import { matchCv } from '../jobs/match.js'
-import { checkLegitimacy } from '../jobs/legitimacy.js'
+import { evaluateJob } from '../jobs/evaluate.js'
+import { loadProfile } from '../profile.js'
+import { openProfileDialog } from './profile-dialog.js'
 import { createAssist, coverLetterDoc } from '../ai/assist.js'
 import { getConnection } from '../ai/connections.js'
 
@@ -39,7 +42,28 @@ export function mergeJob(job, parsed, { prefer = false } = {}) {
 /** The client with `signal` added to every call, so Cancel aborts AI requests made through createAssist. */
 export const withSignal = (client, signal) => ({ ...client, complete: args => client.complete({ ...args, signal }) })
 
-export const latestEvaluation = job => (job?.evaluations ?? []).filter(e => e?.kind === 'ai').at(-1) ?? null
+/** Newest stored AI evaluation in the Evaluation shape (older entries without rows predate it). */
+export const latestEvaluation = job => (job?.evaluations ?? []).filter(e => e?.source === 'ai' && Array.isArray(e.rows)).at(-1) ?? null
+
+/** What the tracker keeps of an evaluation: all of it but the match estimate (`kind` for the jobs dialog). */
+export const evaluationRecord = ({ match, ...ev }) => ({ kind: ev.source, ...ev })
+
+const AUTH_LEVEL = { sponsors: 'ok', 'not-needed': 'ok', unstated: 'warn', 'no-sponsorship': 'error' }
+const LIVE_LEVEL = { open: 'ok', closed: 'error', unknown: 'info' }
+
+/** Gate banners shown above the requirement table: `{ id, level: ok|info|warn|error, key, vars?, quote }`; null gates were not computed. */
+export function gateBanners(gates) {
+  if (!gates) return []
+  const { liveness, geo, workAuth, dealBreakers } = gates
+  const out = []
+  if (liveness) out.push({ id: 'liveness', level: LIVE_LEVEL[liveness.status] ?? 'info', key: `eval.gate.liveness.${liveness.status}`, quote: liveness.quote })
+  if (geo) out.push({ id: 'geo', level: geo.mismatch ? 'warn' : 'ok', key: `eval.gate.geo.${geo.mismatch ? 'mismatch' : 'ok'}`, quote: geo.quote })
+  out.push(workAuth
+    ? { id: 'workAuth', level: AUTH_LEVEL[workAuth.tier] ?? 'info', key: `eval.gate.workAuth.${workAuth.tier}`, quote: workAuth.quote }
+    : { id: 'workAuth', level: 'info', key: 'eval.gate.workAuth.none', quote: '' })
+  for (const d of dealBreakers ?? []) out.push({ id: 'dealBreaker', level: 'error', key: 'eval.gate.dealBreaker', vars: { term: d.term }, quote: d.quote })
+  return out
+}
 
 const bandClass = score => score >= 75 ? 'is-good' : score >= 50 ? 'is-fair' : 'is-poor'
 
@@ -47,8 +71,9 @@ export function mountJobPanel(root, store, ctx) {
   const { t } = ctx
   let job = null // Job-like: { id?, url, source, title, company, location, text, postedAt?, evaluations? }
   let parsed = null
-  let legit = null
-  let evaluation = null
+  let liveness // HTTP status of the posting fetch (URL jobs); undefined for pasted text → 'unknown'
+  let refined = null // AI evaluation for the shown job; otherwise the local one is recomputed on every render
+  let active = ''
   let busy = null // { label, ac }
   let proxy = null
 
@@ -62,7 +87,9 @@ export function mountJobPanel(root, store, ctx) {
   })
   const out = h('div', { class: 'job-out', 'aria-live': 'polite' })
   root.replaceChildren(h('div', { class: 'job-panel' },
-    h('div', { class: 'job-form' }, input, h('div', { class: 'job-form__bar' }, analyzeBtn)), out))
+    h('div', { class: 'job-form' }, input, h('div', { class: 'job-form__bar' }, analyzeBtn,
+      h('button', { type: 'button', class: 'job-profile-link', onClick: () => ctx.openProfileDialog() }, t('eval.profile')))), out))
+  ctx.openProfileDialog = () => openProfileDialog(ctx, { onSave: () => job && render() })
 
   // ---------- helpers ----------
 
@@ -124,8 +151,7 @@ export function mountJobPanel(root, store, ctx) {
   function show(next, p = parseJob(next.text)) {
     parsed = p
     job = mergeJob(next, p)
-    legit = checkLegitimacy(job, { saved: ctx.tracker?.list?.() ?? [], now: new Date(), parsed: p })
-    evaluation = latestEvaluation(job)
+    refined = latestEvaluation(job)
     render()
   }
 
@@ -134,10 +160,12 @@ export function mountJobPanel(root, store, ctx) {
   function analyze() {
     const value = input.value.trim()
     if (!value) return input.focus()
+    liveness = undefined
     if (!isJobUrl(value)) return show({ url: '', source: 'paste', title: '', company: '', location: '', text: value })
     run('job.busy.fetch', async signal => {
       proxy ??= probeProxy(globalThis.fetch, location.origin)
       const got = await fetchJob(value, { proxyBase: (await proxy) ?? undefined, webFetch: webFetchFor(signal), signal })
+      liveness = 200 // fetchJob only resolves for a readable posting
       show(got)
     })
   }
@@ -161,17 +189,18 @@ export function mountJobPanel(root, store, ctx) {
   function saveToTracker() {
     const id = ensureSaved()
     const score = currentMatch()?.score
-    if (Number.isFinite(score)) job = { ...job, ...ctx.tracker.addEvaluation(id, { kind: 'local', score }) }
+    const ev = localEvaluation()
+    if (Number.isFinite(score)) job = { ...job, ...ctx.tracker.addEvaluation(id, { source: 'local', score: ev.score, recommendation: ev.recommendation, match: score }) }
     ctx.toast?.(t('job.saved'))
     render()
   }
 
   const evaluate = () => run('job.busy.evaluate', async signal => {
     if (!(await aiReady())) return
-    const ev = await assist(signal).evaluate(promptJob())
+    const ev = await assist(signal).evaluate(promptJob(), { local: localEvaluation() })
     const id = ensureSaved()
-    job = { ...job, ...ctx.tracker.addEvaluation(id, { kind: 'ai', ...ev }) }
-    evaluation = latestEvaluation(job)
+    job = { ...job, ...ctx.tracker.addEvaluation(id, evaluationRecord(ev)) }
+    refined = ev
   })
 
   const tailor = () => run('job.busy.tailor', async signal => {
@@ -209,10 +238,17 @@ export function mountJobPanel(root, store, ctx) {
     const saved = ctx.tracker?.get?.(id)
     if (!saved) return ctx.toast?.(t('job.notFound'))
     input.value = saved.url || ''
+    liveness = undefined
     show(saved)
   }
 
   // ---------- view ----------
+
+  function localEvaluation() {
+    const s = store.state
+    return evaluateJob({ source: s.content, doc: s.doc, layout: s.layout, issues: s.issues }, job,
+      { profile: loadProfile(), now: new Date(), liveness, saved: (ctx.tracker?.list?.() ?? []).filter(j => j.id !== job.id) })
+  }
 
   function currentMatch() {
     if (!parsed) return null
@@ -228,7 +264,7 @@ export function mountJobPanel(root, store, ctx) {
       isJobUrl(job.url) && h('a', { class: 'job-card__link', href: job.url, target: '_blank', rel: 'noopener noreferrer' }, t('job.source')),
       h('div', { class: 'job-card__bar' },
         client() && button(t('job.refine'), refine),
-        button(t('job.clear'), () => { job = parsed = legit = evaluation = null; input.value = ''; render(); input.focus() })))
+        button(t('job.clear'), () => { job = parsed = refined = null; input.value = ''; render(); input.focus() })))
   }
 
   function gauge(score) {
@@ -273,7 +309,8 @@ export function mountJobPanel(root, store, ctx) {
         h('div', { class: 'job-chips' }, m.present.map(k => chip(k.keyword, () => k.lines[0] && store.reveal(k.lines[0]), 'is-present')))])
   }
 
-  function legitView() {
+  // G · legitimacy, including the prompt-injection anomaly quoted from the JD
+  function legitView(legit) {
     return h('section', { class: 'job-legit' },
       h('h3', { class: 'ui-group__title' }, t('job.legit.title'), ' ',
         h('span', { class: `ui-badge job-level is-${legit.level}` }, t(`job.legit.${legit.level}`))),
@@ -282,20 +319,55 @@ export function mountJobPanel(root, store, ctx) {
         s.evidence && h('q', { class: 'job-signal__evidence' }, s.evidence)))))
   }
 
+  const quote = text => text && h('q', { class: 'job-quote' }, text)
+
+  function gatesView(gates) {
+    return h('ul', { class: 'job-gates' }, gateBanners(gates).map(g => h('li', { class: `job-gate is-${g.level}`, dataset: { gate: g.id } },
+      h('span', null, t(g.key, g.vars)), quote(g.quote),
+      g.key === 'eval.gate.workAuth.none' && h('button', { type: 'button', class: 'job-profile-link', onClick: () => ctx.openProfileDialog() }, t('eval.profile.edit')))))
+  }
+
+  function evidenceCell(r) {
+    const e = r.evidence
+    if (!e) return h('td', { class: 'ui-muted' }, '—')
+    return h('td', null, h('button', { type: 'button', class: 'job-locate', title: t('eval.locate'), onClick: () => store.reveal(e.line) },
+      t('eval.line', { line: e.line })), ' ', e.text)
+  }
+
+  function rowsView(ev) {
+    return [h('table', { class: 'job-reqs' },
+      h('thead', null, h('tr', null, ['req', 'importance', 'match', 'evidence'].map(c => h('th', { scope: 'col' }, t(`eval.col.${c}`))))),
+      h('tbody', null, ev.rows.map(r => h('tr', { class: `is-${r.match}` },
+        h('td', null, h('strong', null, r.requirement), r.jdSignal !== r.requirement && h('q', { class: 'job-quote' }, r.jdSignal)),
+        h('td', { class: `job-imp is-${r.importance}` }, t(`eval.importance.${r.importance}`)),
+        h('td', { class: 'job-fit' }, t(`eval.match.${r.match}`)),
+        evidenceCell(r))))),
+    ev.dropped > 0 && h('p', { class: 'job-note' }, t('eval.dropped', { n: ev.dropped }))]
+  }
+
+  // A · role summary, gates, ★ score with recommendation, B · requirement table
   function evaluationView(ev) {
-    return h('section', { class: 'job-eval' },
-      h('h3', { class: 'ui-group__title' }, t('job.eval.title'), ' ',
-        h('span', { class: 'job-eval__score' }, t('job.eval.score', { score: ev.score })), ' ',
+    const { role } = ev
+    const ai = ev.source === 'ai'
+    return h('section', { class: `job-report${ai ? ' job-eval' : ''}`, dataset: { source: ev.source } },
+      h('h3', { class: 'ui-group__title' }, t(ai ? 'eval.title.ai' : 'eval.title'), ' ',
+        h('span', { class: 'job-eval__score', 'aria-label': t('eval.score.aria', { score: ev.score }) }, '★ ', t('job.eval.score', { score: ev.score })), ' ',
         h('span', { class: `ui-badge job-rec is-${ev.recommendation}` }, t(`job.eval.${ev.recommendation}`))),
-      ev.summary && h('p', { class: 'job-eval__summary' }, ev.summary),
-      ev.requirements?.length > 0 && h('table', { class: 'job-reqs' },
-        h('thead', null, h('tr', null, ['req', 'verdict', 'evidence'].map(c => h('th', { scope: 'col' }, t(`job.eval.col.${c}`))))),
-        h('tbody', null, ev.requirements.map(r => h('tr', { class: `is-${r.verdict}` },
-          h('td', null, r.text), h('td', null, t(`job.eval.${r.verdict}`)), h('td', null, r.evidence))))),
+      ev.caps.length > 0 && h('p', { class: 'job-note' }, t('eval.capped', { caps: ev.caps.map(c => t(`eval.cap.${c}`)).join(', ') })),
+      h('p', { class: 'job-role' }, ['archetype', 'seniority', 'remote'].map(k => h('span', { class: 'ui-badge' }, t(`eval.${k}.${role[k]}`)))),
+      role.tldr && h('p', { class: 'job-tldr' }, role.tldr),
+      gatesView(ev.gates),
+      ev.rows.length > 0 ? rowsView(ev) : h('p', { class: 'job-note' }, t('eval.noRows')),
       ev.gaps?.length > 0 && [h('h4', { class: 'job-sub' }, t('job.eval.gaps')), h('ul', { class: 'job-gaps' }, ev.gaps.map(g => h('li', null, g)))],
-      ev.levelFit && h('p', null, h('strong', null, t('job.eval.level')), ' ', ev.levelFit),
-      ev.legitimacy?.notes && h('p', null, h('strong', null, t('job.eval.legit', { level: t(`job.legit.${ev.legitimacy.level}`) })), ' ', ev.legitimacy.notes),
       ev.pitch && h('p', { class: 'job-eval__pitch' }, h('strong', null, t('job.eval.pitch')), ' ', ev.pitch))
+  }
+
+  // Top-bar chips follow the shown job (Task 32's store.setActiveJob; absent before it lands).
+  function publish(v) {
+    const key = JSON.stringify(v)
+    if (key === active) return
+    active = key
+    store.setActiveJob?.(v)
   }
 
   function render() {
@@ -303,13 +375,18 @@ export function mountJobPanel(root, store, ctx) {
     const status = busy && h('div', { class: 'job-busy', role: 'status' },
       h('span', { class: 'job-spinner', 'aria-hidden': 'true' }), h('span', null, t(busy.label)),
       button(t('app.cancel'), () => busy?.ac.abort()))
-    if (!job) return out.replaceChildren(...[status || h('p', { class: 'job-empty ui-muted' }, t('job.empty'))])
+    if (!job) {
+      publish(null)
+      return out.replaceChildren(...[status || h('p', { class: 'job-empty ui-muted' }, t('job.empty'))])
+    }
     const m = currentMatch()
-    out.replaceChildren(...[status, jobCard(), matchView(m), legitView(),
+    const ev = refined ?? localEvaluation()
+    publish({ id: job.id ?? null, match: m.score, score: ev.score })
+    out.replaceChildren(...[status, jobCard(),
       h('div', { class: 'job-actions' },
-        button(t('job.evaluate'), evaluate), button(t('job.tailor'), tailor),
+        button(t('eval.refine'), evaluate), button(t('job.tailor'), tailor),
         button(t('job.letter'), coverLetter), button(t('job.save'), saveToTracker, 'ui-btn--primary')),
-      evaluation && evaluationView(evaluation)].flat(Infinity).filter(Boolean))
+      evaluationView(ev), matchView(m), legitView(ev.legitimacy)].flat(Infinity).filter(Boolean))
     for (const b of out.querySelectorAll('.job-actions button, .job-card__bar button')) b.disabled = !!busy
   }
 

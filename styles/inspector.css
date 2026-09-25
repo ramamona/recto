@@ -1,7 +1,7 @@
-/* Inspector (Page / Theme / Section / Decor / CSS tabs) and the Check / ATS panels. Builds on app.css components. */
+/* Inspector (Page / Theme / Section / Decor / CSS tabs) and the Review tab. Builds on app.css components. */
 
 /* the side pane is an auto-sized grid track: without min-width 0 long content widens the whole pane */
-.app-side__inspector, .app-side__panels { min-width: 0; }
+.app-side__pane { min-width: 0; }
 .insp-body, .pnl-body { flex: 1; min-height: 0; }
 .insp-body .ui-field { grid-template-columns: minmax(0, 1fr) auto; }
 .insp-body .ui-field > label { overflow-wrap: anywhere; }
@@ -32,7 +32,6 @@
 .insp-css { width: 100%; min-height: 240px; }
 
 /* ---------- Panels ---------- */
-.pnl-count { margin-left: 2px; }
 .pnl-empty { margin: 0; padding: 16px 12px; color: var(--ui-ok); }
 .pnl-group { padding: 8px 12px 4px; }
 .pnl-issues { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
@@ -51,9 +50,42 @@
   margin: 0 12px; padding: 8px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
   font: var(--ui-size-sm)/1.5 var(--ui-mono); background: var(--ui-surface-2); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm);
 }
-.pnl-subtitle { padding: 12px 12px 0; }
 .pnl-fields { display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; margin: 0; padding: 0 12px 12px; font-size: var(--ui-size-sm); }
 .pnl-fields dt { color: var(--ui-muted); }
 .pnl-fields dd { margin: 0; overflow-wrap: anywhere; }
 .pnl-fields .is-missing { color: var(--ui-warn); }
-.pnl-sections { margin: 0; padding: 0; list-style: none; }
+
+/* ---------- Review tab (review-panel.js) ---------- */
+.rv-root { padding-bottom: 16px; }
+.rv-head { display: flex; align-items: center; gap: 14px; padding: 14px 12px 6px; }
+.rv-ring {
+  --rv-c: var(--ui-ok);
+  flex: none; display: grid; place-content: center; justify-items: center; width: 72px; height: 72px; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--ui-surface) 78%, transparent 80%),
+    conic-gradient(var(--rv-c) calc(var(--rv-p, 0) * 1%), var(--ui-surface-2) 0);
+}
+.rv-ring.is-C { --rv-c: var(--ui-warn); }
+.rv-ring.is-D, .rv-ring.is-F { --rv-c: var(--ui-error); }
+.rv-ring__score { font-size: 22px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.rv-ring__grade { font-size: 11px; font-weight: 650; color: var(--rv-c); }
+.rv-head__title { margin: 0; font-size: 14px; }
+.rv-head__note { margin: 2px 0 0; font-size: var(--ui-size-sm); }
+.rv-title { padding: 12px 12px 0; }
+.rv-hint { margin: 0; padding: 4px 12px 8px; font-size: var(--ui-size-sm); }
+.rv-checks { margin: 0; padding: 0 12px; list-style: none; display: grid; gap: 2px; }
+.rv-check summary { display: grid; grid-template-columns: minmax(0, 1fr) 64px 3.6em; align-items: center; gap: 8px; padding: 5px 0; }
+.rv-check__pts { text-align: right; font-size: var(--ui-size-sm); font-variant-numeric: tabular-nums; }
+.rv-check__pts.is-lost { color: var(--ui-warn); font-weight: 600; }
+.rv-bar { height: 6px; border-radius: 3px; background: var(--ui-surface-2); overflow: hidden; }
+.rv-bar__fill { display: block; height: 100%; background: var(--ui-accent); }
+.rv-check__hint { margin: 0 0 6px; font-size: var(--ui-size-sm); }
+.rv-check .pnl-issues { margin-bottom: 8px; }
+.rv-ok { margin: 0 0 8px; color: var(--ui-ok); font-size: var(--ui-size-sm); }
+.rv-details > summary { cursor: pointer; }
+.rv-root > .rv-details { border-top: 1px solid var(--ui-border); margin-top: 12px; }
+.rv-root > .rv-details > summary { padding: 10px 12px; font-weight: 600; }
+.rv-form dd.is-missing, .rv-entries .is-missing .rv-reason { color: var(--ui-warn); }
+.rv-form dd.is-missing::before { content: '⚠ '; }
+.rv-entries { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.rv-entries li { display: grid; gap: 1px; justify-items: start; padding-left: 8px; border-left: 2px solid var(--ui-border); }
+.rv-entries li.is-missing { border-left-color: var(--ui-warn); }

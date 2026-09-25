@@ -26,16 +26,33 @@ const LETTER_LOCALES = ['en-US', 'en-CA', 'es-MX', 'fr-CA']
 const HISTORY_MAX = 100
 const TEXT_COALESCE_MS = 1000
 
+// Right-pane tabs (review-jobs spec §4); the narrow-screen tabs Review and Job show those two panels full height.
+const PANEL_ALIAS = { check: 'review', ats: 'review' }
+const TAB_ALIAS = { design: 'page' }
+const FULL = ['review', 'job']
+/** Narrow-screen tab that shows a right-pane panel. */
+export const panelTab = panel => FULL.includes(panel) ? panel : 'page'
+
+function nextUi(ui, patch) {
+  const next = { ...ui, ...patch }
+  next.panel = PANEL_ALIAS[next.panel] ?? next.panel
+  if (next.tab === 'check') next.tab = panelTab(next.panel) === 'page' ? 'review' : panelTab(next.panel)
+  next.tab = TAB_ALIAS[next.tab] ?? next.tab
+  if ('tab' in patch && FULL.includes(next.tab)) next.panel = next.tab
+  else if ('panel' in patch && FULL.includes(ui.tab)) next.tab = panelTab(next.panel)
+  return next
+}
+
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 const sameLayout = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b)
 
-export function createStore({ storage, runPreflight = () => [], now = () => new Date(), locale = 'en-US', debounceMs = 500 }) {
+export function createStore({ storage, runPreflight = () => [], atsReport = null, now = () => new Date(), locale = 'en-US', debounceMs = 500 }) {
   let state = Object.freeze({
     docId: null, name: '', content: '', layout: defaultLayout(), doc: parse(''),
-    report: null, issues: [], placement: null,
+    report: null, issues: [], placement: null, ats: null, activeJob: null,
     selection: null, caretLine: 1, reveal: null,
     file: null, saveStatus: 'browser', warnings: [],
-    ui: { zoom: 'fit', xray: false, tab: 'write', panel: 'check', dialog: null },
+    ui: { zoom: 'fit', xray: false, tab: 'write', panel: 'design', dialog: null },
     canUndo: false, canRedo: false, docs: storage.listDocs(),
   })
   const subs = new Set()
@@ -108,7 +125,7 @@ export function createStore({ storage, runPreflight = () => [], now = () => new 
     last = null
     set({
       docId: id, name, content, layout, doc: parse(content), warnings,
-      report: null, issues: [], placement: null, selection: null, caretLine: 1, reveal: null,
+      report: null, issues: [], placement: null, ats: null, selection: null, caretLine: 1, reveal: null,
       file: next?.file ?? null, saveStatus: next?.status ?? 'browser',
       canUndo: false, canRedo: false, docs: storage.listDocs(),
     })
@@ -173,11 +190,14 @@ export function createStore({ storage, runPreflight = () => [], now = () => new 
     select: sel => set({ selection: sel ?? null }),
     setCaretLine: n => set({ caretLine: n }),
     reveal: line => set({ reveal: { line, seq: (state.reveal?.seq ?? 0) + 1 } }),
-    setUi: patch => set({ ui: { ...state.ui, ...patch } }),
+    setUi: patch => set({ ui: nextUi(state.ui, patch) }),
+    /** The Job panel's shown job for the top-bar chips: { id, match, score } or null. */
+    setActiveJob: job => set({ activeJob: job ?? null }),
     setRender({ report = null, placement = null } = {}) {
       const { content: source, doc, layout } = state
       const issues = runPreflight({ source, doc, layout, report, placement, now: now(), lang: layout.lang })
-      set({ report, placement, issues })
+      const ats = atsReport?.({ source, doc, layout, report, placement, issues, lang: layout.lang }) ?? null
+      set({ report, placement, issues, ats })
     },
 
     newDoc,

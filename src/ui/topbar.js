@@ -1,5 +1,5 @@
 // Top bar (spec 5.3): document switcher, file open/save, import/export, templates, undo/redo,
-// preflight badge, save status and the light/dark toggle. Returns the actions main.js binds to shortcuts.
+// ATS / job score chips, save status and the light/dark toggle. Returns the actions main.js binds to shortcuts.
 import { h, uid } from './dom.js'
 import { openFile, saveFile, download, fontsToBase64, base64ToBlob } from '../io/files.js'
 import { loadFonts, saveFont, registerFonts } from '../io/storage.js'
@@ -168,7 +168,7 @@ export function mountTopbar(root, store, ctx) {
   }, true)
 
   // ---------- export and print ----------
-  // Logical order (spec 6.2), same as the CLI .txt; the page-marked stream download lives in the ATS panel.
+  // Logical order (spec 6.2), same as the CLI .txt; the page-marked stream download lives in the Review tab.
   const exportTxt = () => {
     try {
       const { doc, layout } = store.state
@@ -246,7 +246,11 @@ export function mountTopbar(root, store, ctx) {
     h('button', { class: 'ui-btn ui-btn--ghost', type: 'button', dataset: { action }, onClick: run, ...props }, label)
   const undo = btn('undo', '↶', () => store.undo(), { class: 'ui-btn ui-btn--ghost ui-btn--icon', 'aria-label': t('app.undo'), title: t('app.undo') })
   const redo = btn('redo', '↷', () => store.redo(), { class: 'ui-btn ui-btn--ghost ui-btn--icon', 'aria-label': t('app.redo'), title: t('app.redo') })
-  const badge = h('button', { class: 'ui-badge app-badge', type: 'button', onClick: () => store.setUi({ panel: 'check', tab: 'check' }) })
+  const openPanel = panel => ctx.openPanel ? ctx.openPanel(panel) : store.setUi({ panel })
+  const chip = (action, panel) => h('button', { class: 'ui-badge app-chip', type: 'button', dataset: { action }, onClick: () => openPanel(panel) })
+  const atsChip = chip('ats-chip', 'review')
+  const matchChip = chip('match-chip', 'job')
+  const starChip = chip('score-chip', 'job')
   const status = h('span', { class: 'app-status ui-muted' })
   const jobsBtn = btn('jobs', t('jobs.button'), () => ctx.openJobsDialog?.())
   const aiBtn = btn('ai', '', () => ctx.openAiDialog?.(), { class: 'ui-btn ui-btn--ghost app-ai' })
@@ -271,7 +275,7 @@ export function mountTopbar(root, store, ctx) {
     h('span', { class: 'ui-spacer' }),
     jobsBtn, aiBtn,
     h('span', { class: 'ui-sep' }),
-    badge, status, themeBtn,
+    atsChip, matchChip, starChip, status, themeBtn,
   )
 
   // ---------- theme ----------
@@ -293,8 +297,21 @@ export function mountTopbar(root, store, ctx) {
     const n = { error: 0, warn: 0, info: 0 }
     for (const i of issues) n[i.severity] = (n[i.severity] ?? 0) + 1
     const parts = [['error', 'errors'], ['warn', 'warnings']].filter(([k]) => n[k]).map(([k, key]) => t(`app.badge.${key}${n[k] === 1 ? '.one' : ''}`, { count: n[k] }))
-    const kind = n.error ? 'is-error' : n.warn ? 'is-warn' : 'is-ok'
-    return [parts.join(' · ') || (n.info ? t('app.badge.info', { count: n.info }) : t('app.badge.none')), kind]
+    return parts.join(' · ') || (n.info ? t('app.badge.info', { count: n.info }) : t('app.badge.none'))
+  }
+  // ATS 86 · B always (the issue count moves to its tooltip); Match and ★ only while the Job tab shows a job
+  const GRADE_KIND = { A: 'is-ok', B: 'is-ok', C: 'is-warn', D: 'is-error', F: 'is-error' }
+  function chips({ ats, issues, activeJob }) {
+    atsChip.textContent = ats ? t('app.chip.ats', ats) : t('app.chip.atsPending')
+    atsChip.className = `ui-badge app-chip ${ats ? GRADE_KIND[ats.grade] : ''}`
+    atsChip.title = `${badgeText(issues)} · ${t('app.chip.atsOpen')}`
+    const match = activeJob?.match, score = activeJob?.score
+    matchChip.hidden = match == null
+    matchChip.textContent = t('app.chip.match', { match: Math.round(match) })
+    matchChip.title = t('app.chip.jobOpen')
+    starChip.hidden = score == null
+    starChip.textContent = t('app.chip.score', { score: Number(score).toFixed(1) })
+    starChip.title = t('app.chip.jobOpen')
   }
   function statusText({ saveStatus, file }) {
     if (saveStatus === 'error') return t('app.status.error')
@@ -308,14 +325,11 @@ export function mountTopbar(root, store, ctx) {
     docName.textContent = untitled()
     undo.disabled = !s.canUndo
     redo.disabled = !s.canRedo
-    const [text, kind] = badgeText(s.issues)
-    badge.textContent = text
-    badge.className = `ui-badge app-badge ${kind}`
-    badge.title = t('app.badge.open')
+    chips(s)
     status.textContent = statusText(s)
     status.classList.toggle('is-error', s.saveStatus === 'error')
   }
-  const KEYS = ['name', 'docs', 'canUndo', 'canRedo', 'issues', 'saveStatus', 'file']
+  const KEYS = ['name', 'docs', 'canUndo', 'canRedo', 'issues', 'ats', 'activeJob', 'saveStatus', 'file']
   store.subscribe((s, changed) => { if (KEYS.some(k => changed.has(k))) update(s) })
   update(store.state)
 

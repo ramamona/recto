@@ -325,7 +325,7 @@ test('reveal increments seq; select, setUi, setRender', () => {
   assert.deepEqual(store.state.selection, { kind: 'section', id: 'skills' })
   store.setUi({ xray: true })
   assert.equal(store.state.ui.xray, true)
-  assert.equal(store.state.ui.panel, 'check')
+  assert.equal(store.state.ui.panel, 'design')
   store.setRender({ report: { pageCount: 1 }, placement: [] })
   assert.deepEqual(store.state.issues, [{ rule: 'r', severity: 'warn' }])
   assert.equal(seen[0].source, store.state.content)
@@ -333,6 +333,49 @@ test('reveal increments seq; select, setUi, setRender', () => {
   assert.equal(seen[0].lang, 'en')
   assert.deepEqual(seen[0].report, { pageCount: 1 })
   assert.ok(seen[0].now instanceof Date)
+})
+
+test('ui.panel: legacy check|ats become review; narrow tabs follow the review/job panels', () => {
+  const { store } = setup()
+  store.setUi({ panel: 'check' })
+  assert.equal(store.state.ui.panel, 'review')
+  store.setUi({ panel: 'ats' })
+  assert.equal(store.state.ui.panel, 'review')
+  assert.equal(store.state.ui.tab, 'write') // a panel change never pulls the user off the editor tab
+  store.setUi({ tab: 'design' })
+  assert.equal(store.state.ui.tab, 'page')
+  store.setUi({ panel: 'job', tab: 'check' }) // the old tracker dialog's "open this job"
+  assert.deepEqual([store.state.ui.panel, store.state.ui.tab], ['job', 'job'])
+  store.setUi({ tab: 'review' })
+  assert.equal(store.state.ui.panel, 'review')
+  store.setUi({ panel: 'suggest' }) // Suggest has no narrow tab: it shows beside the pages
+  assert.equal(store.state.ui.tab, 'page')
+  store.setUi({ panel: 'job' })
+  assert.equal(store.state.ui.tab, 'page')
+})
+
+test('setActiveJob stores the Job panel summary for the top-bar chips', () => {
+  const { store } = setup()
+  assert.equal(store.state.activeJob, null)
+  store.setActiveJob({ id: 'j1', match: 76, score: 3.8 })
+  assert.deepEqual(store.state.activeJob, { id: 'j1', match: 76, score: 3.8 })
+  store.setActiveJob(null)
+  assert.equal(store.state.activeJob, null)
+})
+
+test('setRender computes the ATS report when atsReport is injected; a doc switch clears it', () => {
+  const seen = []
+  const atsReport = args => { seen.push(args); return { score: 86, grade: 'B' } }
+  const { store } = setup({ runPreflight: () => [{ rule: 'r' }], atsReport })
+  assert.equal(store.state.ats, null)
+  store.setRender({ report: { pageCount: 1 }, placement: [] })
+  assert.deepEqual(store.state.ats, { score: 86, grade: 'B' })
+  assert.deepEqual(seen[0].issues, [{ rule: 'r' }])
+  assert.equal(seen[0].source, store.state.content)
+  assert.deepEqual(seen[0].report, { pageCount: 1 })
+  store.newDoc()
+  assert.equal(store.state.ats, null)
+  assert.equal(setup().store.state.ats, null) // not injected: no report, no throw
 })
 
 test('autosave is debounced', async () => {
