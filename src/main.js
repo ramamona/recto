@@ -103,7 +103,7 @@ async function appMode() {
   on(window, 'pagehide', () => store.flush())
   on(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') store.flush() })
   const banners = h('div', { class: 'app-banners' })
-  document.body.append(banners)
+  $('#topbar').after(banners) // in flow: a banner pushes the panes down instead of covering them
 
   function toast(msg, { action } = {}) {
     const el = h('div', { class: 'ui-toast' }, h('span', {}, msg),

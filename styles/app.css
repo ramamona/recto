@@ -109,8 +109,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ---------- Frame ---------- */
-.app { display: grid; grid-template-rows: var(--ui-top-h) minmax(0, 1fr); height: 100vh; }
-.app-top { grid-row: 1; display: flex; align-items: center; gap: var(--ui-gap); padding: 0 12px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); min-width: 0; }
+.app { display: flex; flex-direction: column; height: 100vh; }
+.app > * { flex: none; }
+.app > .app-main { flex: 1 1 auto; }
+.app-top { height: var(--ui-top-h); display: flex; align-items: center; gap: var(--ui-gap); padding: 0 12px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); min-width: 0; }
 .app-main {
   grid-row: 2; display: grid; min-height: 0;
   grid-template-columns: minmax(300px, var(--ui-editor-w, 32%)) 6px minmax(0, 1fr) 6px var(--ui-side-w, 340px);
@@ -122,7 +124,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app-splitter:hover, .app-splitter:focus-visible { opacity: 1; background: var(--ui-accent); }
 
 @media (max-width: 899px) {
-  .app { grid-template-rows: var(--ui-top-h) auto minmax(0, 1fr); }
   .app-tabs { grid-row: 2; display: flex; }
   .app-main { grid-row: 3; grid-template-columns: minmax(0, 1fr); }
   .app-splitter { display: none; }
@@ -259,7 +260,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app-paste, .app-rename { width: 100%; }
 .app-checklist { margin: 8px 0 0; padding-left: 20px; }
 
-.app-banners { position: fixed; top: var(--ui-top-h); left: 0; right: 0; z-index: 900; display: grid; box-shadow: var(--ui-shadow); }
+.app-banners { display: grid; }
 .app-banners:empty { display: none; }
 
 .app-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); gap: 16px; }
