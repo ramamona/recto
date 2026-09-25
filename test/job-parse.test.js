@@ -122,3 +122,9 @@ test('keywordsIn finds tools, acronyms and aliases, canonical names, no stopword
   assert.deepEqual(keywordsIn('We use JS, k8s and Postgres on AWS. You will love it.'), ['JavaScript', 'Kubernetes', 'PostgreSQL', 'AWS'])
   assert.deepEqual(keywordsIn('Experience with Node.js, C++ and C#'), ['Node.js', 'C++', 'C#'])
 })
+
+test('company · location line under the title splits into company and location', () => {
+  const p = parseJob('Senior Frontend Engineer\nAcme Robotics · Remote (US)\nPosted 3 days ago\n\nRequirements\n- React')
+  assert.equal(p.company, 'Acme Robotics')
+  assert.equal(p.location, 'Remote (US)')
+})

@@ -203,6 +203,12 @@ export function parseJob(text, { now = new Date() } = {}) {
     out.company = (about?.[1] ?? is?.[1] ?? '').trim()
   }
   if (!out.location) out.location = top.slice(0, 8).find(l => l !== out.title && isLocationLike(l)) ?? ''
+  // "Acme Robotics · Remote (US)" under the title: company first, location after the separator
+  const split = out.location.split(/\s+[·|•–—-]\s+/)
+  if (!out.company && split.length > 1 && !isLocationLike(split[0])) {
+    out.company = split[0].trim()
+    out.location = split.slice(1).join(' · ').trim()
+  }
   const words = src.split(/\s+/).filter(Boolean).length
   out.signals = { emails: [...new Set(src.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? [])], words }
   if (!out.salary) delete out.salary
