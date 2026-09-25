@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Recto — a text-first CV builder with a live paged canvas, preflight checks and ATS-safe PDFs. Runs locally, no accounts.">
   <title>Recto — CV builder</title>
@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="styles/canvas.css">
   <link rel="stylesheet" href="styles/inspector.css">
   <link rel="stylesheet" href="styles/import.css">
+  <link rel="stylesheet" href="styles/assist.css">
   <style id="recto-page"></style>
   <script type="module" src="src/main.js"></script>
 </head>

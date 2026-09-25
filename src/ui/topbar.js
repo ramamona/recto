@@ -40,7 +40,7 @@ function menu(label, items, props = {}) {
   return [btn, pop]
 }
 
-function dialogBox(title, body, actions) {
+export function dialogBox(title, body, actions) {
   const id = uid('dlg')
   return h('dialog', { class: 'ui-dialog', 'aria-labelledby': id, closedby: 'any' },
     h('header', { class: 'ui-dialog__head' }, h('h2', { class: 'ui-dialog__title', id }, title)),
@@ -49,7 +49,7 @@ function dialogBox(title, body, actions) {
 }
 
 // Confirm/cancel dialog; `onConfirm` runs after it closes.
-function ask(ctx, { title, body, confirm, danger = false, onConfirm }) {
+export function ask(ctx, { title, body, confirm, danger = false, onConfirm }) {
   let close
   const ok = h('button', { class: `ui-btn ${danger ? 'ui-btn--danger' : 'ui-btn--primary'}`, type: 'button', onClick: () => { close(); onConfirm() } }, confirm)
   close = ctx.openDialog(dialogBox(title, body, [h('button', { class: 'ui-btn', type: 'button', onClick: () => close() }, ctx.t('app.cancel')), ok]))
@@ -248,6 +248,13 @@ export function mountTopbar(root, store, ctx) {
   const redo = btn('redo', '↷', () => store.redo(), { class: 'ui-btn ui-btn--ghost ui-btn--icon', 'aria-label': t('app.redo'), title: t('app.redo') })
   const badge = h('button', { class: 'ui-badge app-badge', type: 'button', onClick: () => store.setUi({ panel: 'check', tab: 'check' }) })
   const status = h('span', { class: 'app-status ui-muted' })
+  const jobsBtn = btn('jobs', t('jobs.button'), () => ctx.openJobsDialog?.())
+  const aiBtn = btn('ai', '', () => ctx.openAiDialog?.(), { class: 'ui-btn ui-btn--ghost app-ai' })
+  const aiLabel = () => {
+    aiBtn.textContent = aiBtn.title = ctx.ai?.label() ?? t('ai.button')
+  }
+  addEventListener('recto:ai', aiLabel) // AI_EVENT from ai-dialog.js
+  aiLabel()
   const themeBtn = btn('theme', '◐', toggleTheme, { class: 'ui-btn ui-btn--ghost ui-btn--icon', 'aria-label': t('app.theme'), title: t('app.theme') })
 
   root.replaceChildren(
@@ -262,6 +269,8 @@ export function mountTopbar(root, store, ctx) {
     h('span', { class: 'ui-sep' }),
     undo, redo,
     h('span', { class: 'ui-spacer' }),
+    jobsBtn, aiBtn,
+    h('span', { class: 'ui-sep' }),
     badge, status, themeBtn,
   )
 

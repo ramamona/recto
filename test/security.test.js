@@ -6,7 +6,7 @@ import { parse } from '../src/model/markdown.js'
 
 const root = new URL('..', import.meta.url).pathname
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
-  "font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+  "font-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'"
 
 // A string literal with no interpolation, e.g. '' or `<b>x</b>`.
 const LITERAL = /^\s*(?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\$])*`)\s*[;,)]?\s*$/

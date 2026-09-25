@@ -51,9 +51,13 @@ node cli/recto.js check my.cv.json --template classic    # preflight; exit code 
 
 See [docs/cli.md](docs/cli.md) for the input formats, the exit codes and a CI example.
 
+## AI & jobs
+
+Everything above works with no AI at all: local suggestions, a local ATS match score against a pasted job description, legitimacy checks and the job tracker are all on by default and never leave your machine. Connecting a provider — an API key, OpenRouter sign-in, or a local Ollama/LM Studio server — adds AI-backed suggestions, tailoring, fit evaluation and cover letters on top. AI only proposes: every change comes back as a diff card you accept, reject or edit per item, and a card that would add a fact your CV doesn't already have is flagged and excluded from "Accept all". See [docs/assist.md](docs/assist.md) for how to connect each provider, what gets sent and to whom, and what the match score and legitimacy flags mean.
+
 ## Privacy
 
-Recto has no accounts, no backend, no analytics and no telemetry. Your CV lives in your browser's `localStorage`, uploaded fonts live in IndexedDB, and copies exist only in files you save. A strict Content-Security-Policy stops the app from making any request outside its own origin, including `url(https://…)` in custom CSS. A hosted instance serves static files and never receives your data.
+Recto has no accounts, no backend, no analytics and no telemetry. Your CV lives in your browser's `localStorage`, uploaded fonts live in IndexedDB, and copies exist only in files you save. AI is off by default: nothing leaves your machine until you connect a provider and confirm what gets sent, and only your chosen provider ever sees your CV. The app never submits applications or sends messages on your behalf. A strict Content-Security-Policy limits requests to your own origin plus, only once you've connected a provider, that provider's endpoint (HTTPS, or `localhost`/`127.0.0.1` for a local model server); custom CSS still cannot load a remote `url(https://…)`. A hosted instance serves static files and never receives your data.
 
 ## Browser support
 
@@ -68,6 +72,7 @@ Page breaks come from real font metrics. The built-in font stacks end in metric-
 - [Templates and the styling contract](docs/templates.md)
 - [Self-hosting](docs/self-hosting.md)
 - [CLI](docs/cli.md)
+- [AI & jobs assist](docs/assist.md)
 - [Architecture and manual QA checklist](docs/architecture.md)
 
 ## Contributing

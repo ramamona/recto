@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node serve.js",
     "test": "node --test",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "assist-check": "node scripts/assist-check.js"
   }
 }

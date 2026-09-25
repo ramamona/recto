@@ -160,11 +160,13 @@ function anchor(pop, btn, align) {
   })
 }
 
+const REWRITES = ['stronger', 'shorter', 'quantify', 'grammar', 'formal']
+
 // ---------- mount ----------
 
 export function mountEditor(root, store, ctx) {
   const { t } = ctx
-  const helpId = uid('ed-help'), hintId = uid('ed-hint'), menuId = uid('ed-insert'), syntaxId = uid('ed-syntax')
+  const helpId = uid('ed-help'), hintId = uid('ed-hint'), menuId = uid('ed-insert'), syntaxId = uid('ed-syntax'), rewriteId = uid('ed-rewrite')
 
   const pre = h('pre', { class: 'ed-hl', 'aria-hidden': 'true' })
   const ta = h('textarea', {
@@ -181,7 +183,16 @@ export function mountEditor(root, store, ctx) {
     h('div', { class: 'ui-scroll ed-syntax__body' }, h('table', {}, h('tbody', {}, [...rows.values()]))))
   const insertBtn = h('button', { class: 'ui-btn ui-btn--sm', type: 'button', popovertarget: menuId, 'aria-haspopup': 'menu' }, t('editor.insert'), ' ▾')
   const helpBtn = h('button', { class: 'ui-btn ui-btn--sm ui-btn--icon', type: 'button', popovertarget: syntaxId, title: t('editor.syntax.title'), 'aria-label': t('editor.syntax.title') }, '?')
+  // Selection → "✨ Rewrite" chip → instruction → AI diff cards in the Suggest tab (assist spec §7).
+  const customInput = h('input', { class: 'ui-input', type: 'text', placeholder: t('editor.rewrite.customPh'), 'aria-label': t('editor.rewrite.custom') })
+  const rewriteMenu = h('div', { class: 'ui-menu ed-pop', id: rewriteId, popover: 'auto', role: 'menu' },
+    REWRITES.map(id => h('button', { class: 'ui-menu__item', type: 'button', role: 'menuitem', onClick: () => rewrite(id) }, t('editor.rewrite.' + id))),
+    h('div', { class: 'ui-menu__sep' }),
+    h('form', { class: 'ed-rewrite-custom', onSubmit: e => { e.preventDefault(); if (customInput.value.trim()) rewrite(customInput.value.trim()) } },
+      customInput, h('button', { class: 'ui-btn ui-btn--sm', type: 'submit' }, t('editor.rewrite.go'))))
+  const rewriteBtn = h('button', { class: 'ui-btn ui-btn--sm ed-rewrite', type: 'button', popovertarget: rewriteId, 'aria-haspopup': 'menu', hidden: true }, t('editor.rewrite'))
   anchor(menu, insertBtn, 'start')
+  anchor(rewriteMenu, rewriteBtn, 'start')
   anchor(syntax, helpBtn, 'end')
   on(syntax, 'toggle', e => { if (e.newState === 'closed') for (const r of rows.values()) r.classList.remove('is-hit') })
 
@@ -189,11 +200,11 @@ export function mountEditor(root, store, ctx) {
   const hintIssue = h('span', { class: 'ed-hint__issue' })
   const hintPos = h('span', { class: 'ed-hint__pos' })
   root.append(
-    h('div', { class: 'ed-bar' }, insertBtn, h('span', { class: 'ui-spacer' }), helpBtn),
+    h('div', { class: 'ed-bar' }, insertBtn, rewriteBtn, h('span', { class: 'ui-spacer' }), helpBtn),
     scroller,
     h('div', { class: 'ed-hint', id: hintId }, hintCtx, hintIssue, hintPos),
     h('p', { class: 'visually-hidden', id: helpId }, t('editor.tabHelp')),
-    menu, syntax,
+    menu, syntax, rewriteMenu,
   )
 
   let lines = [], info = [], lineEls = [], contactLines = new Set(), escaped = false
@@ -260,8 +271,27 @@ export function mountEditor(root, store, ctx) {
     ].filter(Boolean) : []))
   }
 
+  // Lines touched by the selection; a selection ending at column 0 does not include that line.
+  function selectedLines() {
+    const { selectionStart: a, selectionEnd: b } = ta
+    if (a === b || !ta.value.slice(a, b).trim()) return []
+    const first = ta.value.slice(0, a).split('\n').length
+    const last = ta.value.slice(0, b).split('\n').length - (ta.value[b - 1] === '\n' ? 1 : 0)
+    return Array.from({ length: last - first + 1 }, (_, i) => first + i).filter(n => lines[n - 1]?.trim())
+  }
+
+  function rewrite(instruction) {
+    rewriteMenu.hidePopover()
+    const picked = selectedLines()
+    if (!picked.length) return
+    customInput.value = ''
+    if (ctx.runAssist) ctx.runAssist(assist => assist.rewrite(picked, instruction))
+    else ctx.toast?.(t('app.unavailable'))
+  }
+
   function onCaret() {
     updateHint()
+    if (document.activeElement === ta) rewriteBtn.hidden = !selectedLines().length
     const { line } = caret()
     if (line !== store.state.caretLine) store.setCaretLine(line)
     if (document.activeElement !== ta) return

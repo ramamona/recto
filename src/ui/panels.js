@@ -1,10 +1,12 @@
-// Side panels (spec 5.3 Right): Check (preflight issues with Locate / Fix) and ATS (what a parser reads).
+// Side panels (spec 5.3 Right): Check (preflight issues with Locate / Fix), ATS (what a parser reads),
+// Suggest (assist-panel.js) and Job (job-panel.js); the last two render themselves into persistent roots.
 import { extractFields, extractText } from '../preflight/ats.js'
 import { download } from '../io/files.js'
 import { h } from './dom.js'
 import { makeTabs } from './inspector.js'
+import { mountAssistPanel } from './assist-panel.js'
 
-const PANELS = ['check', 'ats']
+const PANELS = ['check', 'ats', 'suggest', 'job']
 const SEVERITIES = ['error', 'warn', 'info']
 
 // Stream-order text, one `--- page N ---` block per rendered page; logical order before the first render.
@@ -32,6 +34,14 @@ export function mountPanels(root, store, ctx) {
   tabs.buttons[0].append(' ', badge)
   const body = h('div', { class: 'ui-scroll pnl-body', role: 'tabpanel', tabIndex: -1 })
   root.replaceChildren(tabs.bar, body)
+
+  const suggestEl = h('div', { class: 'as-root' })
+  mountAssistPanel(suggestEl, store, ctx)
+  const jobEl = h('div', { class: 'jp-root' })
+  import('./job-panel.js').then(m => m.mountJobPanel(jobEl, store, ctx)).catch(err => {
+    console.warn('recto: job panel unavailable', err)
+    jobEl.replaceChildren(h('p', { class: 'app-placeholder ui-muted' }, t('app.unavailable')))
+  })
 
   const panelOf = s => PANELS.includes(s.ui.panel) ? s.ui.panel : 'check'
   const button = (label, onClick, props = {}) => h('button', { type: 'button', class: 'ui-btn ui-btn--sm', onClick, ...props }, label)
@@ -119,7 +129,8 @@ export function mountPanels(root, store, ctx) {
     body.setAttribute('aria-labelledby', tabs.select(panel).id)
     const top = body.scrollTop
     const hadFocus = body.contains(document.activeElement)
-    body.replaceChildren(...[panel === 'check' ? checkPanel(s) : atsPanel(s)].flat(Infinity).filter(Boolean))
+    const views = { check: checkPanel, ats: atsPanel, suggest: () => suggestEl, job: () => jobEl }
+    body.replaceChildren(...[views[panel](s)].flat(Infinity).filter(Boolean))
     body.scrollTop = top
     if (hadFocus && !body.contains(document.activeElement)) body.focus({ preventScroll: true })
   }
@@ -132,7 +143,7 @@ export function mountPanels(root, store, ctx) {
     badge.textContent = String(s.issues.length)
   }
 
-  const WATCH = { check: ['issues', 'content'], ats: ['doc', 'layout', 'placement', 'name'] }
+  const WATCH = { check: ['issues', 'content'], ats: ['doc', 'layout', 'placement', 'name'], suggest: [], job: [] }
   let shown = panelOf(store.state)
   store.subscribe((s, changed) => {
     if (changed.has('issues')) updateBadge(s)

@@ -84,10 +84,14 @@ async function mountOptional(path, name, root, store, ctx) {
 }
 
 async function appMode() {
-  const [i18n, dom, { createStore }, storageMod, { runPreflight }, { mountTopbar }] = await Promise.all([
+  const [i18n, dom, { createStore }, storageMod, { runPreflight }, { mountTopbar }, aiDialog, { openJobsDialog }, { createTracker }] = await Promise.all([
     import('./ui/i18n.js'), import('./ui/dom.js'), import('./store.js'), import('./io/storage.js'),
-    import('./preflight/rules.js'), import('./ui/topbar.js'),
+    import('./preflight/rules.js'), import('./ui/topbar.js'), import('./ui/ai-dialog.js'), import('./ui/jobs-dialog.js'),
+    import('./jobs/tracker.js'),
   ])
+  // OpenRouter sign-in returns with ?code=: drop it from the URL (and history) before anything else
+  const oauth = aiDialog.takeOAuthCode(location.href)
+  if (oauth) history.replaceState(history.state, '', oauth.url)
   const { t } = i18n
   const { h, $, $$, on, clamp, isMod, isTyping } = dom
   await i18n.loadLocale(navigator.language)
@@ -124,6 +128,11 @@ async function appMode() {
   }
 
   const ctx = { t, runPreflight, canvas: null, editor: null, toast, openDialog }
+  ctx.ai = aiDialog.createAi(ctx)
+  ctx.tracker = createTracker()
+  ctx.assistQueue = new Map() // docId → suggestion cards waiting for that document (tailoring)
+  ctx.openAiDialog = opts => aiDialog.openAiDialog(store, ctx, opts)
+  ctx.openJobsDialog = () => openJobsDialog(store, ctx, { tracker: ctx.tracker })
   window.recto = { store, ctx } // console access for debugging
 
   const lastId = store.state.docs[0]?.id
@@ -182,7 +191,8 @@ async function appMode() {
   })
   on(window, 'afterprint', () => { document.title = title })
 
-  if (firstRun) {
+  if (oauth) aiDialog.finishSignIn(store, ctx, oauth.code)
+  else if (firstRun) {
     banner('first-run', t('app.firstRun'), [[t('app.save'), topbar.save], [t('app.dismiss')]])
     topbar.showTemplates()
   }
