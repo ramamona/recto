@@ -1,0 +1,33 @@
+{
+  "id": "tech",
+  "name": "Tech",
+  "description": "Monospace headings over a clean sans body, compact skill tags and a cool cyan accent.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 14, "right": 14, "bottom": 14, "left": 14 } },
+    "grid": {
+      "columns": [
+        { "id": "main", "width": 2.3 },
+        { "id": "side", "width": 1, "bg": "#f0fbfc", "bleed": true, "accentColor": "#0e7490" }
+      ],
+      "gutter": 9, "headerSpan": "full", "readingOrder": ["main", "side"]
+    },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "neo-grotesque", "fontHeading": "mono",
+      "sizeName": 22, "sizeSection": 9.5, "sizeEntry": 9.75, "sizeBody": 9.25, "sizeSmall": 8.25,
+      "lineHeight": 1.32, "gapParagraph": 1, "gapEntry": 2.6, "gapSection": 4.6,
+      "colorText": "#111827", "colorMuted": "#4b5563", "colorAccent": "#0e7490", "colorRule": "#a5e6ec",
+      "colorHeading": "accent", "headingCase": "upper", "headingLetterSpacing": 0.03, "headingWeight": 700,
+      "headingRule": "below", "nameWeight": 700, "bulletChar": "▪", "dateStyle": "right", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "*": { "column": "main" },
+    "skills": { "column": "side", "variant": "tags" },
+    "languages": { "column": "side", "variant": "tags" },
+    "certifications": { "column": "side", "variant": "compact" },
+    "projects": { "variant": "compact" }
+  }
+}

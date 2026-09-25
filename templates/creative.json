@@ -1,0 +1,35 @@
+{
+  "id": "creative",
+  "name": "Creative",
+  "description": "A soft coloured band behind the header and a tinted right sidebar, set in a friendly geometric sans.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 16, "right": 16, "bottom": 16, "left": 16 } },
+    "grid": {
+      "columns": [
+        { "id": "main", "width": 2.2 },
+        { "id": "side", "width": 1, "bg": "#fdeee4", "bleed": true, "accentColor": "#c2410c" }
+      ],
+      "gutter": 10, "headerSpan": "full", "readingOrder": ["main", "side"]
+    },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "geometric", "fontHeading": "geometric",
+      "sizeName": 27, "sizeSection": 10.5, "sizeEntry": 10.25, "sizeBody": 9.5, "sizeSmall": 8.5,
+      "lineHeight": 1.34, "gapParagraph": 1.1, "gapEntry": 3, "gapSection": 5.5,
+      "colorText": "#1f2937", "colorMuted": "#57534e", "colorAccent": "#c2410c", "colorRule": "#f3d5be",
+      "colorHeading": "accent", "headingCase": "upper", "headingLetterSpacing": 0.06, "headingWeight": 700,
+      "headingRule": "none", "nameWeight": 800, "bulletChar": "▪", "dateStyle": "right", "linkStyle": "plain"
+    },
+    "decor": [
+      { "id": "band", "kind": "rect", "pages": "first", "x": 0, "y": 0, "w": 210, "h": 38, "fill": "#fdeee4", "stroke": null, "z": "back" }
+    ]
+  },
+  "sectionDefaults": {
+    "*": { "column": "main" },
+    "skills": { "column": "side", "variant": "tags" },
+    "languages": { "column": "side", "variant": "tags" },
+    "certifications": { "column": "side", "variant": "compact" },
+    "projects": { "variant": "compact" }
+  }
+}

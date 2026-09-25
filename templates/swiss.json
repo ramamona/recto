@@ -1,0 +1,25 @@
+{
+  "id": "swiss",
+  "name": "Swiss",
+  "description": "Strict one column, bold grotesque type, a large name and dates set in the left margin.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 16, "right": 18, "bottom": 16, "left": 28 } },
+    "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
+    "header": { "align": "left" },
+    "theme": {
+      "fontBody": "neo-grotesque", "fontHeading": "neo-grotesque",
+      "sizeName": 32, "sizeSection": 10, "sizeEntry": 10, "sizeBody": 9.5, "sizeSmall": 8.5,
+      "lineHeight": 1.3, "gapParagraph": 1, "gapEntry": 2.8, "gapSection": 5,
+      "colorText": "#0a0a0a", "colorMuted": "#525252", "colorAccent": "#c81e1e", "colorRule": "#0a0a0a",
+      "colorHeading": "text", "headingCase": "upper", "headingLetterSpacing": 0.04, "headingWeight": 800,
+      "headingRule": "none", "nameWeight": 800, "bulletChar": "-", "dateStyle": "left", "linkStyle": "plain"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "projects": { "variant": "compact" },
+    "languages": { "variant": "grid" },
+    "certifications": { "variant": "compact" }
+  }
+}

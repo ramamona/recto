@@ -1,0 +1,25 @@
+{
+  "id": "elegant",
+  "name": "Elegant",
+  "description": "Centred serif header, hairline rules above headings and generous spacing in a muted burgundy.",
+  "targetPages": 1,
+  "layout": {
+    "page": { "margins": { "top": 16, "right": 22, "bottom": 16, "left": 22 } },
+    "grid": { "columns": [{ "id": "main", "width": 1 }], "gutter": 8, "headerSpan": "full" },
+    "header": { "align": "center" },
+    "theme": {
+      "fontBody": "transitional", "fontHeading": "transitional",
+      "sizeName": 24, "sizeSection": 10.5, "sizeEntry": 10, "sizeBody": 9.5, "sizeSmall": 8.5,
+      "lineHeight": 1.3, "gapParagraph": 1, "gapEntry": 2.6, "gapSection": 4.5,
+      "colorText": "#2a1f22", "colorMuted": "#7a6367", "colorAccent": "#7c2d3f", "colorRule": "#d8c4c9",
+      "colorHeading": "accent", "headingCase": "small-caps", "headingLetterSpacing": 0.05, "headingWeight": 600,
+      "headingRule": "above", "nameWeight": 500, "bulletChar": "·", "dateStyle": "right", "linkStyle": "underline"
+    },
+    "decor": []
+  },
+  "sectionDefaults": {
+    "projects": { "variant": "compact" },
+    "languages": { "variant": "grid" },
+    "certifications": { "variant": "compact" }
+  }
+}

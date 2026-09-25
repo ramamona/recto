@@ -8,12 +8,14 @@ import { fromPlainText } from '../io/plaintext.js'
 import { extractText } from '../preflight/ats.js'
 import { loadTemplates } from '../model/templates.js'
 import { openGallery } from './gallery.js'
+import { openImportReview } from './import-review.js'
 
 const THEME_KEY = 'recto:theme'
 const CHECKLIST_KEY = 'recto:print-checklist'
 
 const lsGet = k => { try { return localStorage.getItem(k) } catch { return null } }
 const lsSet = (k, v) => { try { localStorage.setItem(k, v) } catch { /* site data blocked: not remembered */ } }
+const UPLOAD_ACCEPT = '.pdf,.docx,.txt,.md,.html,.htm,.rtf,.json'
 const stem = name => String(name).replace(/(\.cv)?\.[^.]*$/i, '')
 const isChromium = () => !!navigator.userAgentData?.brands?.some(b => b.brand === 'Chromium')
 
@@ -115,17 +117,55 @@ export function mountTopbar(root, store, ctx) {
   }
   const open = () => pick('.json', true)
 
+  // ---------- import an existing CV: extract text, convert, review ----------
+  function review(text, { warnings = [], fileName = '', kind = '' } = {}) {
+    const recto = kind === 'md' && /^# /m.test(text) // already Recto Markdown: no conversion
+    const { content, notes } = recto ? { content: text, notes: [] } : fromPlainText(text, store.state.layout.lang)
+    const name = fileName ? stem(fileName) : t('app.paste.docName')
+    openImportReview(store, ctx, { content, notes, warnings, fileName, name, onPaste: pasteText })
+  }
+
+  async function importFile(file) {
+    try {
+      if (/\.json$/i.test(file.name)) return await load({ name: file.name, text: await file.text() })
+      const { extractFile } = await import('../io/extract.js') // loaded on first use: PDF/DOCX readers are big
+      const { text, kind, warnings } = await extractFile(file)
+      review(text, { warnings, fileName: file.name, kind })
+    } catch (err) { failed(err) }
+  }
+
+  // openFile() reads text only; binary formats need the File itself.
+  function upload() {
+    const input = h('input', { type: 'file', accept: UPLOAD_ACCEPT })
+    input.addEventListener('change', () => input.files[0] && importFile(input.files[0]))
+    input.click()
+  }
+
   function pasteText() {
     const area = h('textarea', { class: 'ui-textarea app-paste', rows: 14, autofocus: true, 'aria-label': t('app.paste.label'), placeholder: t('app.paste.placeholder') })
     ask(ctx, {
       title: t('app.paste.title'), body: [h('p', { class: 'ui-muted' }, t('app.paste.hint')), area], confirm: t('app.import'),
-      onConfirm() {
-        if (!area.value.trim()) return
-        store.loadFile({ format: 'recto', version: 1, name: t('app.paste.docName'), content: fromPlainText(area.value, store.state.layout.lang) })
-        ctx.toast(t('app.paste.done'))
-      },
+      onConfirm() { if (area.value.trim()) review(area.value) },
     })
   }
+
+  // Drop a file anywhere on the app to import it.
+  const dropZone = h('div', { class: 'app-drop', hidden: true }, h('p', { class: 'app-drop__msg' }, t('import.drop')))
+  document.body.append(dropZone)
+  const hasFiles = e => e.dataTransfer?.types?.includes('Files')
+  let depth = 0
+  addEventListener('dragenter', e => { if (hasFiles(e)) { depth++; dropZone.hidden = false } }, true)
+  addEventListener('dragleave', e => { if (hasFiles(e) && --depth <= 0) { depth = 0; dropZone.hidden = true } }, true)
+  addEventListener('dragover', e => { if (hasFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }, true)
+  addEventListener('drop', e => {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    depth = 0
+    dropZone.hidden = true
+    const file = e.dataTransfer.files[0]
+    if (file) importFile(file)
+  }, true)
 
   // ---------- export and print ----------
   // Logical order (spec 6.2), same as the CLI .txt; the page-marked stream download lives in the ATS panel.
@@ -189,6 +229,7 @@ export function mountTopbar(root, store, ctx) {
   docBtn.prepend(docName)
 
   const [importBtn, importMenu] = menu(t('app.import'), () => [
+    { text: t('app.import.upload'), action: 'import-upload', run: upload },
     { text: t('app.import.cv'), action: 'import-cv', run: () => pick('.json') },
     { text: t('app.import.md'), action: 'import-md', run: () => pick('.md,.markdown,.txt') },
     { text: t('app.import.jsonresume'), action: 'import-jsonresume', run: () => pick('.json') },
