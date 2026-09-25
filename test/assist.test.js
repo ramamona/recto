@@ -99,13 +99,55 @@ test('tailor returns suggestions plus keywordsAdded and summary; job keywords ar
   assert.ok(client.calls[0].messages[0].content.includes('Go, Kubernetes'))
 })
 
-test('evaluate normalizes the report', async () => {
-  const client = fakeClient(JSON.stringify({ score: 9, recommendation: 'apply', summary: 'Good', requirements: [{ text: 'Go', weight: 2, evidence: 'line 12', verdict: 'met' }], gaps: ['Rust'], levelFit: 'senior', legitimacy: { level: 'ok', notes: '' }, pitch: 'Hi' }))
-  const r = await assist(client).evaluate(JOB)
+test('evaluate merges AI over the local evaluation; unquotable evidence is dropped', async () => {
+  const lines = SAMPLE.split('\n')
+  const k8s = lines.findIndex(l => l.includes('Kubernetes')) + 1
+  const local = {
+    source: 'local', role: { archetype: 'engineering', seniority: 'staff', remote: 'unknown', tldr: 'Local' },
+    gates: { liveness: { status: 'unknown', quote: '' }, geo: null, workAuth: { tier: 'no-sponsorship', quote: 'No sponsorship.' }, dealBreakers: null },
+    rows: [
+      { requirement: 'Kubernetes', jdSignal: 'Kubernetes in production', importance: 'critical', match: 'missing', keywords: ['Kubernetes'], evidence: null },
+      { requirement: 'Go', jdSignal: 'Go', importance: 'high', match: 'missing', keywords: ['Go'], evidence: null },
+      { requirement: 'Rust', jdSignal: 'Rust', importance: 'meaningful', match: 'missing', keywords: ['Rust'], evidence: null }
+    ],
+    dropped: 0, score: 1.5, recommendation: 'skip', caps: ['no-sponsorship'], legitimacy: { level: 'ok', signals: [] }, match: { score: 40 }
+  }
+  const reply = {
+    score: 4.6, recommendation: 'apply', role: { archetype: 'data', seniority: 'wizard', remote: 'full', tldr: 'Platform role' },
+    rows: [
+      { jdSignal: 'kubernetes in production ', importance: 'meaningful', match: 'strong', evidence: { line: k8s, text: 'Kubernetes' } },
+      { jdSignal: 'Go', match: 'strong', evidence: { line: 3, text: 'Built compilers at Google for 10 years' } },
+      { jdSignal: 'Invented row', importance: 'critical', match: 'strong', evidence: { line: 1, text: '# Alex Morgan' } }
+    ],
+    gaps: ['Rust'], pitch: 'Hi'
+  }
+  const client = fakeClient(JSON.stringify(reply))
+  const r = await assist(client).evaluate(JOB, { local })
+  assert.equal(r.source, 'ai')
+  assert.ok(client.calls[0].messages[0].content.includes('[critical] Kubernetes in production'))
+  assert.deepEqual(r.role, { archetype: 'data', seniority: 'staff', remote: 'full', tldr: 'Platform role' })
+  const [kube, go, rust] = r.rows
+  assert.equal(kube.importance, 'critical', 'importance stays local (pass 1)')
+  assert.equal(kube.match, 'strong')
+  assert.deepEqual(kube.evidence, { line: k8s, text: lines[k8s - 1] })
+  assert.equal(go.match, 'missing', 'unquotable evidence → AI match claim dropped')
+  assert.equal(go.evidence, null)
+  assert.equal(rust.match, 'missing')
+  assert.equal(r.rows.length, 3, 'rows the local pass did not find are not invented')
+  assert.equal(r.score, 1.5, 'local caps still apply')
+  assert.equal(r.recommendation, 'skip')
+  assert.deepEqual(r.gates, local.gates)
+  assert.deepEqual([r.gaps, r.pitch], [['Rust'], 'Hi'])
+})
+
+test('evaluate without a local evaluation computes one; old-shape replies still merge', async () => {
+  const job = { ...JOB, text: 'Requirements\n- Must know Kubernetes\n- Go experience' }
+  const client = fakeClient(JSON.stringify({ score: 9, recommendation: 'apply', summary: 'Good', requirements: [] }))
+  const r = await assist(client).evaluate(job)
+  assert.equal(r.source, 'ai')
   assert.equal(r.score, 5)
   assert.equal(r.recommendation, 'apply')
-  assert.deepEqual(r.gaps, ['Rust'])
-  assert.equal(r.requirements[0].verdict, 'met')
+  assert.equal(r.rows.find(x => /Kubernetes/.test(x.jdSignal)).importance, 'critical')
 })
 
 test('coverLetter and extractJob return normalized objects', async () => {

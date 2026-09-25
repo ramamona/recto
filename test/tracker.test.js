@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createTracker } from '../src/jobs/tracker.js'
+import { createTracker, STATUSES, staleApplied } from '../src/jobs/tracker.js'
 
 function memStorage(init = {}) {
   const m = new Map(Object.entries(init))
@@ -76,4 +76,38 @@ test('export → import into an empty tracker restores jobs; duplicates and junk
   assert.equal(junk.added, 1)
   assert.deepEqual(junk.warnings, [{ code: 'invalid-job', index: 1 }, { code: 'invalid-job', index: 2 }])
   assert.deepEqual(u.import('nope'), { added: 0, warnings: [{ code: 'invalid-json' }] })
+})
+
+test('status enum has no-response; statusHistory records creation and every status change', () => {
+  assert.deepEqual(STATUSES, ['saved', 'applied', 'interview', 'offer', 'rejected', 'no-response', 'skipped'])
+  const t = createTracker(memStorage(), { now })
+  const a = t.save({ title: 'x' })
+  assert.deepEqual(a.statusHistory, [{ status: 'saved', at: a.createdAt }])
+  const same = t.save({ ...a, notes: 'n' })
+  assert.equal(same.statusHistory.length, 1, 'no entry without a status change')
+  const b = t.save({ ...same, status: 'applied', statusHistory: [] })
+  assert.deepEqual(b.statusHistory.map(h => h.status), ['saved', 'applied'], 'stored history wins over the passed one')
+  assert.equal(b.statusHistory[1].at, b.updatedAt)
+  assert.deepEqual(t.save({ ...b, status: 'no-response' }).statusHistory.map(h => h.status), ['saved', 'applied', 'no-response'])
+})
+
+test('stored and imported jobs without history migrate to one entry', () => {
+  const old = { id: 'j1', title: 'Old', status: 'applied', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }
+  const t = createTracker(memStorage({ 'recto:jobs': JSON.stringify([old]) }), { now })
+  assert.deepEqual(t.get('j1').statusHistory, [{ status: 'applied', at: old.updatedAt }])
+  assert.deepEqual(t.list()[0].statusHistory, [{ status: 'applied', at: old.updatedAt }])
+  const u = createTracker(memStorage(), { now })
+  u.import(JSON.stringify([{ ...old, id: 'j2', statusHistory: [{ status: 'bogus', at: 1 }] }]))
+  assert.deepEqual(u.get('j2').statusHistory, [{ status: 'applied', at: old.updatedAt }])
+})
+
+test('staleApplied: applied with no status change for 21 days (default)', () => {
+  const at = '2026-09-01T00:00:00.000Z'
+  const job = { status: 'applied', statusHistory: [{ status: 'saved', at: '2026-08-01T00:00:00.000Z' }, { status: 'applied', at }], updatedAt: '2026-09-20T00:00:00.000Z' }
+  assert.equal(staleApplied(job, new Date('2026-09-21T00:00:00.000Z')), false)
+  assert.equal(staleApplied(job, new Date('2026-09-22T00:00:00.000Z')), true)
+  assert.equal(staleApplied(job, Date.parse('2026-09-10T00:00:00.000Z'), 7), true)
+  assert.equal(staleApplied({ ...job, status: 'interview' }, new Date('2026-12-01')), false)
+  assert.equal(staleApplied({ status: 'applied', updatedAt: at }, new Date('2026-10-01')), true, 'falls back to updatedAt')
+  assert.equal(staleApplied(null, new Date()), false)
 })

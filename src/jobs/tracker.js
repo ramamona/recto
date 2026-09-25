@@ -1,7 +1,8 @@
 // Job tracker store (assist spec 3): jobs in localStorage['recto:jobs'], export/import JSON. Never throws on bad data.
 
 export const JOBS_KEY = 'recto:jobs'
-export const STATUSES = ['saved', 'applied', 'interview', 'offer', 'rejected', 'skipped']
+export const STATUSES = ['saved', 'applied', 'interview', 'offer', 'rejected', 'no-response', 'skipped']
+export const STALE_DAYS = 21
 const SOURCES = ['greenhouse', 'lever', 'ashby', 'url', 'paste']
 const FORMAT = 'recto-jobs'
 
@@ -14,6 +15,20 @@ function defaultStorage() {
   try { if (globalThis.localStorage) return globalThis.localStorage } catch {}
   const m = new Map()
   return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)) }
+}
+
+// Valid history as stored, else one entry for the current status (jobs saved before statusHistory existed)
+function historyOf(j, status, at) {
+  const h = Array.isArray(j.statusHistory) ? j.statusHistory.filter(e => isJob(e) && STATUSES.includes(e.status) && str(e.at)) : []
+  return h.length ? h.map(({ status, at }) => ({ status, at })) : [{ status, at }]
+}
+const migrate = j => ({ ...j, statusHistory: historyOf(j, j.status, str(j.updatedAt) || str(j.createdAt)) })
+
+/** Applied with no status change for `days` days: the board suggests No response (never automatic). */
+export function staleApplied(job, now, days = STALE_DAYS) {
+  if (job?.status !== 'applied') return false
+  const last = Date.parse(job.statusHistory?.at(-1)?.at ?? job.updatedAt)
+  return Number.isFinite(last) && +now - last >= days * 864e5
 }
 
 function clean(j, stamp) {
@@ -30,18 +45,20 @@ function clean(j, stamp) {
     createdAt: str(j.createdAt) || stamp,
     updatedAt: str(j.updatedAt) || stamp
   }
+  out.statusHistory = historyOf(j, out.status, out.updatedAt)
   if (str(j.postedAt)) out.postedAt = j.postedAt
   return out
 }
 
-/** `{ list, get, save, remove, addEvaluation, link, export, import }` over `storage`; `now` is injectable for tests. */
+/** `{ list, get, save, remove, addEvaluation, link, export, import }` over `storage`; `now` is injectable for tests.
+ * `save` appends `{ status, at }` to `statusHistory` on creation and on every status change. */
 export function createTracker(storage = defaultStorage(), { now = () => new Date() } = {}) {
   const stamp = () => now().toISOString()
 
   function read() {
     try {
       const data = JSON.parse(storage.getItem(JOBS_KEY) ?? '[]')
-      return Array.isArray(data) ? data.filter(j => isJob(j) && typeof j.id === 'string' && j.id) : []
+      return Array.isArray(data) ? data.filter(j => isJob(j) && typeof j.id === 'string' && j.id).map(migrate) : []
     } catch {
       return []
     }
@@ -64,7 +81,11 @@ export function createTracker(storage = defaultStorage(), { now = () => new Date
       const jobs = read()
       const i = jobs.findIndex(j => j.id === job?.id)
       const t = stamp()
-      const saved = clean({ ...job, createdAt: i < 0 ? t : jobs[i].createdAt, updatedAt: t }, t)
+      const prev = i < 0 ? { status: null, statusHistory: [] } : jobs[i]
+      const saved = clean({ ...job, createdAt: i < 0 ? t : prev.createdAt, updatedAt: t, statusHistory: null }, t)
+      // stored history wins over the caller's; append only when the status changes (incl. creation)
+      saved.statusHistory = prev.status === saved.status ? prev.statusHistory
+        : [...prev.statusHistory, { status: saved.status, at: t }]
       if (i < 0) jobs.push(saved)
       else jobs[i] = saved
       write(jobs)

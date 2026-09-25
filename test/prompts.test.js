@@ -62,7 +62,11 @@ test('schemas match spec §6', () => {
   assert.ok(t.properties.keywordsAdded && t.properties.summary)
   const e = P.evaluatePrompt({ source: SOURCE, job: JOB }).json
   assert.deepEqual(e.properties.recommendation.enum, ['apply', 'consider', 'skip'])
-  assert.deepEqual(e.properties.requirements.items.properties.verdict.enum, ['met', 'partial', 'missing'])
+  const row = e.properties.rows.items.properties
+  assert.deepEqual(row.importance.enum, ['critical', 'high', 'meaningful'])
+  assert.deepEqual(row.match.enum, ['strong', 'partial', 'missing', 'na'])
+  assert.deepEqual(e.properties.rows.items.properties.evidence.required, ['line', 'text'])
+  for (const k of ['archetype', 'seniority', 'remote', 'tldr']) assert.ok(e.properties.role.properties[k], k)
   assert.deepEqual(P.coverLetterPrompt({ source: SOURCE, job: JOB }).json.required, ['paragraphs'])
 })
 
@@ -71,4 +75,14 @@ test('extractJobPrompt returns the §3 shape schema and includes the text', () =
   assert.ok(text(p).includes('Senior Go Engineer at Globex'))
   for (const k of ['title', 'company', 'location', 'requirements', 'keywords']) assert.ok(p.json.properties[k], k)
   assert.deepEqual(p.json.properties.requirements.items.properties.kind.enum, ['must', 'nice'])
+})
+
+test('evaluate prompt: two passes, the JD is untrusted data, local rows are passed on', () => {
+  const t = text(P.evaluatePrompt({ source: SOURCE, job: JOB, rows: [{ jdSignal: 'We need Go and Kubernetes.', importance: 'critical' }] }))
+  assert.match(t, /Evaluate how well this CV fits the job/)
+  assert.match(t, /Pass 1/)
+  assert.match(t, /Pass 2/)
+  assert.match(t, /untrusted data/i)
+  assert.ok(t.includes('[critical] We need Go and Kubernetes.'))
+  assert.ok(t.indexOf('untrusted') < t.indexOf('Job posting:'))
 })

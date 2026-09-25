@@ -3,6 +3,7 @@ import * as P from './prompts.js'
 import { parseJsonLoose, validateSuggestions } from './guard.js'
 import { categorize } from '../model/categories.js'
 import { escLine } from '../io/jsonresume.js'
+import { evaluateJob, capScore, recommendationFor, ARCHETYPES, SENIORITY, REMOTE_KINDS, MATCHES } from '../jobs/evaluate.js'
 
 const CATEGORIES = ['impact', 'clarity', 'keyword', 'concision', 'grammar', 'structure']
 const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v)
@@ -65,9 +66,12 @@ export function createAssist ({ client, getState }) {
         summary: str(j.summary),
       }
     },
-    async evaluate (job) {
-      const j = await ask(P.evaluatePrompt({ source: getState().content, job }), j => isObj(j) && Number.isFinite(Number(j.score)))
-      return normalizeEvaluation(j)
+    /** Refines a local evaluateJob() result (computed here when not given) with the AI's; see mergeEvaluation. */
+    async evaluate (job, { local } = {}) {
+      const st = getState()
+      const base = local ?? evaluateJob({ source: st.content, doc: st.doc, layout: st.layout }, job)
+      const j = await ask(P.evaluatePrompt({ source: st.content, job, rows: base.rows }), j => isObj(j) && Number.isFinite(Number(j.score)))
+      return mergeEvaluation(base, j, st)
     },
     async coverLetter (job) {
       const j = await ask(P.coverLetterPrompt({ source: getState().content, job }), j => isObj(j) && Array.isArray(j.paragraphs))
@@ -82,21 +86,48 @@ export function createAssist ({ client, getState }) {
 
 const skillsLines = doc => line => (doc?.sections ?? []).some(s => categorize(s.title) === 'skills' && line >= s.line && line <= s.endLine)
 
-function normalizeEvaluation (j) {
-  const leg = isObj(j.legitimacy) ? j.legitimacy : {}
+const key = s => str(s).trim().toLowerCase()
+
+// AI evidence counts only when it quotes a real CV line: find the line (the cited one first), then let the guard confirm it.
+function quotedLine (ev, content, doc) {
+  const text = str(ev?.text).trim()
+  if (text.length < 3) return null
+  const lines = String(content ?? '').split('\n')
+  const at = [Number(ev.line) - 1, ...lines.keys()].find(i => lines[i]?.includes(text))
+  if (at === undefined) return null
+  const [check] = validateSuggestions(content, doc, [{ line: at + 1, expect: lines[at], replacement: lines[at] }])
+  return check.status === 'ok' ? { line: at + 1, text: lines[at] } : null
+}
+
+/**
+ * AI over local: role fields and row match/evidence where valid; importance, gates, caps and legitimacy stay local;
+ * AI rows the local pass 1 did not find are ignored. A match better than missing needs quotable evidence.
+ */
+function mergeEvaluation (local, j, { content, doc }) {
+  const role = isObj(j.role) ? j.role : {}
+  const ai = new Map((Array.isArray(j.rows) ? j.rows : []).filter(isObj).map(r => [key(r.jdSignal), r]))
+  const rows = local.rows.map(row => {
+    const r = ai.get(key(row.jdSignal))
+    if (!r || !MATCHES.includes(r.match)) return row
+    const evidence = quotedLine(r.evidence, content, doc)
+    if (!evidence && (r.match === 'strong' || r.match === 'partial')) return row
+    return { ...row, match: r.match, evidence, requirement: str(r.requirement).trim() || row.requirement }
+  })
+  const { score, caps } = capScore(Math.min(5, Math.max(1, Number(j.score))), local.gates)
   return {
-    score: Math.min(5, Math.max(1, Math.round(Number(j.score)))),
-    recommendation: oneOf(j.recommendation, ['apply', 'consider', 'skip'], 'consider'),
-    summary: str(j.summary),
-    requirements: (Array.isArray(j.requirements) ? j.requirements : []).filter(isObj).map(r => ({
-      text: str(r.text),
-      weight: Number.isFinite(Number(r.weight)) ? Number(r.weight) : 1,
-      evidence: str(r.evidence),
-      verdict: oneOf(r.verdict, ['met', 'partial', 'missing'], 'missing'),
-    })),
+    ...local,
+    source: 'ai',
+    role: {
+      archetype: oneOf(role.archetype, ARCHETYPES, local.role.archetype),
+      seniority: oneOf(role.seniority, SENIORITY, local.role.seniority),
+      remote: local.gates.geo?.mismatch ? local.role.remote : oneOf(role.remote, REMOTE_KINDS, local.role.remote),
+      tldr: str(role.tldr).trim() || local.role.tldr,
+    },
+    rows,
+    score,
+    recommendation: recommendationFor(score),
+    caps,
     gaps: strings(j.gaps),
-    levelFit: str(j.levelFit),
-    legitimacy: { level: oneOf(leg.level, ['ok', 'caution', 'red-flag'], 'caution'), notes: str(leg.notes) },
     pitch: str(j.pitch),
   }
 }
