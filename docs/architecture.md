@@ -42,19 +42,42 @@ src/preflight/              pure
 
 src/io/
   jsonresume.js             pure: toJsonResume, fromJsonResume
-  plaintext.js              pure: pasted CV text → Recto Markdown draft
+  plaintext.js              pure: fromPlainText(text, lang) → { content, notes }; pasted or extracted CV text → Recto Markdown draft
+  extract.js                pure: extractFile(File) → { text, kind, warnings }; readers for DOCX, PDF, HTML, RTF, TXT/MD (never throws)
   storage.js                localStorage documents, IndexedDB fonts, photo downscaling
   files.js                  open / save / download, File System Access API where available
 
+src/ai/                     pure; no fetch or storage happens at import, only when called
+  providers.js               createClient(connection): one client per provider (Anthropic, OpenAI, OpenRouter, Ollama, LM Studio, Custom) behind complete()/listModels()/test(); OpenRouter's PKCE sign-in
+  connections.js              the active connection and per-provider consent: memory first, localStorage['recto:ai'] only when the user opts to remember
+  guard.js                    validateSuggestions: checks an AI suggestion's line still matches, keeps its Recto Markdown kind, and flags facts (numbers, URLs, capitalized words) not already in the CV as "new-facts"
+  prompts.js                  prompt and JSON-Schema builders per feature (suggest, rewrite, tailor, evaluate, cover letter, extract job); numberSource prefixes each line so replies can cite it
+  assist.js                   createAssist({ client, getState }): prompt → client.complete → tolerant JSON parse with one retry → guard.js validation → normalized result
+
+src/jobs/                   pure
+  parse.js                    parseJob(text): postings → { title, company, location, requirements, keywords, salary?, postedAt?, signals }; keywordsIn/canonicalTokens (a ~140-term tech/soft-skill vocabulary plus capitalisation heuristics) back both parsing and matching
+  match.js                     matchCv(cv, job): the local Recto match estimate (keywords 55%, requirements 20%, parseability 15%, essentials 10%), no AI
+  legitimacy.js                checkLegitimacy(job): heuristic flags (stale/no posting date, reposted, payment or ID requests, messaging-app redirects, implausible salary, generic text, email/domain mismatch, urgency language) → ok/caution/red-flag
+  tracker.js                   createTracker(storage): jobs in localStorage['recto:jobs'], CRUD, evaluations, export/import JSON
+  fetch.js                     fetchJob(url): Greenhouse/Lever/Ashby public APIs, then the local /api/fetch proxy (serve.js), then an injected webFetch, else rejects with { code: 'needs-paste' }
+
+src/suggest/
+  local.js                   pure: localSuggestions(source, doc, lang) — deterministic bullet tips (weak opener, no metric, passive voice, filler words, long bullet, repeated verb) with no AI; English-only rules skip other languages
+
 src/ui/
   dom.js  i18n.js           DOM helpers (h, $, on …); t(key, vars) over locales/*.json
-  topbar.js                 documents, open/save, import/export, templates, undo/redo, preflight badge, save status
+  topbar.js                 documents, open/save, import/export (including uploaded .pdf/.docx/.txt/.md/.html/.rtf/.json via src/io/extract.js), templates, undo/redo, preflight badge, save status
   editor.js                 source editor: textarea over a highlighted <pre>, gutter markers, insert menu, syntax popover
   canvas.js                 render loop, zoom, rulers, overlay, section selection and drag, ATS X-ray
   handles.js  decor-tools.js margin/gutter/column handles; drawing and editing decor
   inspector.js              Page, Theme, Section, Decor and CSS tabs
   panels.js                 Check and ATS panels
   gallery.js                template gallery with live thumbnails
+  import-review.js          converted-Markdown editor next to a live preview in the current layout, with the converter's low-confidence notes; "Import" creates a new document
+  ai-dialog.js               AI connections dialog (top bar): provider cards, model list, test connection, remember-on-this-device, and the per-provider first-use consent prompt
+  jobs-dialog.js              job tracker dialog: saved jobs by status, local/AI scores, linked documents, export/import
+  assist-panel.js             Suggest tab: AI diff cards (word-level LCS diff, accept/reject/edit per card, "Accept all safe") plus src/suggest/local.js's deterministic tips
+  job-panel.js                Job tab: paste a link or text → parseJob/fetchJob, the match gauge, legitimacy flags, and the AI actions (Evaluate, Tailor CV, Draft cover letter, Save to tracker)
 
 styles/                     app.css, editor.css, canvas.css, inspector.css (app UI); cv.css (the pages)
 locales/en.json             UI strings (flat keys)
@@ -63,6 +86,7 @@ samples/sample.cv.json      first-run document and smoke-test input
 cli/recto.js  cli/chrome.js CLI; minimal DevTools-protocol driver over --remote-debugging-pipe
 scripts/smoke.js            every template through print mode and PDF
 scripts/render-check.js     pagination and paint checks on generated documents
+scripts/assist-check.js     end-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server; no real provider is ever contacted
 test/*.test.js              node --test
 ```
 
@@ -96,6 +120,14 @@ The pages live in a shadow root whose stylesheet stack is `cv.css`, then the the
 
 **The ATS paint invariant.** Chromium writes PDF text in paint order. So inside `.cv-page`, text-bearing elements are static and in normal flow: no float, positioning, transform, opacity, z-index, filter or order. Only the page, the decor SVGs and letterless pseudo-elements are positioned. Canvas affordances live in an overlay outside the pages. Separators between contacts, tags and fields are real text nodes from `separators.js`, so the PDF text has them too.
 
+## File import and AI/jobs data flow
+
+**Importing a file.** `topbar.js` reads the chosen file with `src/io/extract.js`'s `extractFile(file)`, which sniffs the format from its bytes (falling back to the extension), picks a reader (DOCX unzips `word/document.xml`; PDF decodes its content streams; HTML, RTF and TXT/MD are read directly) and always returns `{ text, kind, warnings }` — it never throws. The plain text goes through `src/io/plaintext.js`'s `fromPlainText(text, lang)`, a pure heuristic converter (entry heads, dates, bullets, contact detection) that returns `{ content, notes }`, where `notes` flags low-confidence guesses by line. `src/ui/import-review.js` shows the converted Markdown next to a live preview rendered with `layoutPages` in the current document's layout; only clicking **Import** creates a new document. Pasted text follows the same `fromPlainText` path without the file-reading step.
+
+**AI.** Nothing runs until the user connects a provider in `src/ui/ai-dialog.js`, which calls `src/ai/providers.js`'s `createClient(connection)` and stores the connection with `src/ai/connections.js` (memory only, unless "Remember on this device" opts into `localStorage`). A feature (Suggest tab, rewrite, tailor, evaluate, cover letter) calls `src/ai/assist.js`'s `createAssist({ client, getState })`, which builds a prompt and JSON Schema with `src/ai/prompts.js`, sends it through the client, tolerantly parses the JSON reply (one retry on a bad shape), and validates every suggestion with `src/ai/guard.js`'s `validateSuggestions` — checking the target line hasn't changed, the replacement keeps the line's Recto Markdown kind, and flagging any number, URL or capitalized word not already in the CV as `new-facts` so it's excluded from "Accept all". `src/ui/assist-panel.js` renders the result as diff cards; nothing is written to the document except by an explicit accept.
+
+**Jobs.** `src/ui/job-panel.js` turns a pasted link or text into a job: a link goes through `src/jobs/fetch.js`'s `fetchJob`, which tries the Greenhouse/Lever/Ashby public APIs, then the local `/api/fetch` proxy (`serve.js`, local mode only), then an injected `webFetch`, and otherwise asks the user to paste the text. The resulting text is parsed by `src/jobs/parse.js`'s `parseJob` into requirements and keywords, scored against the open CV with `src/jobs/match.js`'s `matchCv` (no AI, ever) and checked with `src/jobs/legitimacy.js`'s `checkLegitimacy`. Saving a job stores it with `src/jobs/tracker.js`'s `createTracker` (`localStorage['recto:jobs']`), browsable in `src/ui/jobs-dialog.js`. AI job actions (Evaluate, Tailor CV, Draft cover letter) go through the same `createAssist` path as CV suggestions.
+
 ## Print mode
 
 `index.html?print=<relative url of a .cv.json>[&template=<id>][&report=1]` renders only the pages at zoom 1, without the app UI or `localStorage`. It sets `window.rectoReady` to a promise that resolves to `{ report, issues, placement, violations }` once the document, the template, the embedded fonts, the photo and the render are all done. `violations` lists the text elements that break the paint invariant (only with `report=1`). The CLI and the smoke test open this URL in headless Chrome over the DevTools protocol, await `rectoReady` and call `Page.printToPDF` with `preferCSSPageSize`.
@@ -115,6 +147,7 @@ The pages live in a shadow root whose stylesheet stack is `cv.css`, then the the
 | `npm test` (`node --test`) | Parser grammar and edge cases, dates, categories, layout normalization, migration, ops and section config, templates, content edits, pagination, theme CSS, contrast, every preflight rule and its fix, ATS text, JSON Resume round trip, paste import, remix, the store, the server, locale key parity, and the security scan |
 | `npm run smoke` | Every template renders the sample with zero preflight errors, within its target pages and with at least 8 % free on the last page, with no overflow and no paint-invariant violation. The PDF page count matches, and with `pdftotext` installed, the PDF text has the name, email and section titles in placement order |
 | `node scripts/render-check.js` | Pagination and the paint invariant on generated documents (long sections, multi-page, columns) |
+| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server: suggest, accept/reject, tailor, evaluate, cover letter, the match gauge and the tracker. No real provider is ever contacted |
 
 CI runs `npm test` and `npm run smoke` on `ubuntu-latest` with Node 22, `fonts-liberation` and `poppler-utils`.
 

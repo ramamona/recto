@@ -2,6 +2,8 @@
 
 Recto is a text-first CV builder. You write your CV in a small, strict Markdown dialect, and a live, paged canvas shows the result exactly as it will print. You set margins, columns, panels and lines by dragging them on the page. Preflight checks catch problems before a recruiter or an applicant tracking system (ATS) sees them. The PDF comes from Chromium's print engine, with real, selectable text in the reading order the ATS X-ray shows you. There are no accounts and no backend. The whole app is a folder of static files with zero dependencies and no build step: run it on your laptop or put it on any static host.
 
+**Try it live: [ramamona.github.io/recto](https://ramamona.github.io/recto/)** — nothing is installed, and your CV stays in your browser.
+
 ![Recto: source editor, paged canvas and inspector](docs/screenshot.png)
 
 ## Features
@@ -10,8 +12,9 @@ Recto is a text-first CV builder. You write your CV in a small, strict Markdown 
 - **Visual layout on a live canvas.** Drag the margins, the gutter and the column widths. Drag sections between columns. Draw lines, panels and ellipses anywhere on the page. Every drag also has a numeric input in the inspector.
 - **Preflight.** More than 30 checks for missing contact details, invalid emails and URLs, dates that are mixed, out of order or in the future, pages over target, text that is too small, low contrast, hidden link targets, emoji and invisible characters, and more. Many problems have a one-click **Fix**.
 - **ATS X-ray.** Numbers every block in PDF stream order and shows the exact text an ATS extracts, page by page, along with the fields it detects.
-- **Templates.** Eight built-in templates (classic, modern, minimal, compact, timeline, executive, academic, bold). The gallery previews each one with *your* content, and **Remix** suggests a new look.
-- **Fit to N pages**, custom fonts, a photo, custom CSS, and JSON Resume import and export. You can also paste the text of an old CV to import it.
+- **Templates.** 12 built-in templates (classic, modern, minimal, compact, timeline, executive, academic, bold, elegant, tech, creative, swiss). The gallery previews each one with *your* content, and **Remix** suggests a new look.
+- **Import an existing CV.** Upload a PDF, Word (`.docx`), HTML, RTF or plain text file — or paste the text of an old CV — and Recto converts it to Recto Markdown, with a review screen to check and edit the result (and a live preview) before it becomes a document.
+- **Fit to N pages**, custom fonts, a photo, custom CSS, and JSON Resume import and export.
 - **Local and hosted, same bundle.** `node serve.js` on your machine, or any static host. A Dockerfile and a GitHub Pages workflow are included.
 - **CLI.** `node cli/recto.js export cv.cv.json -o cv.pdf` for scripted and CI builds.
 - **Zero dependencies.** No runtime or dev dependencies and no build step. It uses native ES modules, and the tools run on the Node standard library.

@@ -23,16 +23,23 @@ Two-space indent, no semicolons, single quotes. Keep functions small. Write a co
 ## Running things
 
 ```sh
-node serve.js                        # the app at http://127.0.0.1:8710
+npm start                            # = node serve.js, the app at http://127.0.0.1:8710
 npm test                             # every test: node --test
 node --test test/markdown.test.js    # one test file
 npm run smoke                        # every template through headless Chrome, PDFs in out/
+npm run assist-check                 # end-to-end AI + jobs flow against a stub provider, no real API calls
 node scripts/render-check.js         # pagination and paint checks on generated documents
 ```
 
-The smoke test needs Chrome, Chromium, Edge or Brave. Set `CHROME_PATH` if it isn't installed in a standard place. If `pdftotext` (poppler) is installed, the smoke test also checks the text order of each PDF.
+Run `npm test` after any change. Run `npm run smoke` after anything that touches rendering, layout, templates or the CLI/PDF path. Run `npm run assist-check` after a change to `src/ai/`, `src/jobs/`, `src/suggest/local.js`, `src/ui/ai-dialog.js`, `jobs-dialog.js`, `assist-panel.js` or `job-panel.js`. `node scripts/render-check.js` is for chasing a pagination or paint-invariant bug, not part of the usual loop.
+
+The smoke test and `assist-check` need Chrome, Chromium, Edge or Brave. Set `CHROME_PATH` if it isn't installed in a standard place. If `pdftotext` (poppler) is installed, the smoke test also checks the text order of each PDF.
 
 Tests use `node:test` and `node:assert/strict` and live in `test/<name>.test.js`. A change to behavior comes with a test that fails without it.
+
+## Adding a UI string
+
+Add the key to `locales/en.json` (flat keys, `{placeholder}` for variables) and reference it with `t('your.key', vars)` from `src/ui/i18n.js`. Don't hardcode user-facing text in a UI module. `node --test test/i18n.test.js` checks every other locale file has exactly the same keys as `en.json` — you don't need to translate your new string yourself, just add it to `en.json`.
 
 ## Adding a template
 

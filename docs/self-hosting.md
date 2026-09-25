@@ -22,10 +22,10 @@ Upload the repository folder. These parts are not needed on a server, and the Do
 - **No rewriting of `index.html`.** The Content-Security-Policy is a `<meta>` tag in `index.html`. You may also send it as a response header. If you do, use exactly the same policy:
 
 ```
-default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'
 ```
 
-Don't inject analytics, chat widgets or other third-party scripts. The policy blocks them, and they would break the promise that no data leaves the browser.
+`connect-src` allows `https:` and `localhost`/`127.0.0.1` on top of the app's own origin, because AI is opt-in and BYO-provider (see [assist.md](assist.md)): once a visitor connects a provider in the **AI** dialog, the page talks to that provider's API (or a local Ollama/LM Studio server) directly from the browser. No request happens until a visitor connects one, and only the provider they chose ever receives anything. Don't inject analytics, chat widgets or other third-party scripts — the CSP's `script-src 'self'` still blocks any script that isn't your own, so they wouldn't run, but they also have no business here.
 
 ## Local: `node serve.js`
 
@@ -36,6 +36,14 @@ node serve.js --host 0.0.0.0          # reachable from other machines on your ne
 ```
 
 `serve.js` is a small, zero-dependency server. It binds to `127.0.0.1` by default, and if the port is taken it tries the next one (up to 10 attempts) and prints the URL it used. It blocks path traversal, serves no directory listings and sets correct MIME types. It is meant for your own machine. For a public server, use nginx, Caddy or a static host.
+
+### The `/api/fetch` job-link proxy
+
+`serve.js` also answers `GET /api/fetch?url=<job posting URL>`, fetches that page server-side and returns its extracted text. The Job tab uses it so that a pasted link to a posting that isn't on Greenhouse, Lever or Ashby (whose public APIs allow direct browser requests) can still be turned into job text without asking the visitor to paste it by hand.
+
+The route only exists when the server is actually bound to a loopback address (`127.0.0.1`/`localhost`) — `--host 0.0.0.0` or any other bind address disables it, and it also checks the incoming `Host` header so a page on another origin can't reach it by DNS rebinding. Every request is SSRF-guarded: the target's resolved IPs (and every redirect hop's, up to 5) must be public — private, loopback, link-local and other reserved ranges are all blocked, including IPv4-mapped and 6to4 forms that could otherwise smuggle a private address past the check. The response is capped at 2 MB, times out after 10 seconds, and only `text/html`, `application/xhtml+xml` and `text/plain` content types are accepted.
+
+**Static hosts (GitHub Pages, Netlify, S3, nginx serving plain files, …) have no server-side code, so this proxy doesn't exist there.** On a static host, Greenhouse, Lever and Ashby links still work (their APIs are fetched directly from the browser), and pasting a job posting's text always works everywhere. Any other link needs either a locally-run `node serve.js`, or the visitor pasting the text themselves — see [assist.md](assist.md#job-links).
 
 Any other static server works too:
 
@@ -65,6 +73,8 @@ To use it in your fork:
 3. Push to `main`, or run the **Pages** workflow by hand from the **Actions** tab.
 
 The site appears at `https://<user>.github.io/<repo>/`.
+
+GitHub Pages is a static host with no `/api/fetch` proxy (see above). Everything else works the same: local suggestions, the match score, legitimacy checks, uploading a CV file, Greenhouse/Lever/Ashby job links, and pasting a job posting's text. Only pasting an arbitrary other job URL needs a locally-run instance instead.
 
 ## Other static hosts
 
