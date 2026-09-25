@@ -123,7 +123,7 @@ test('coverLetterDoc copies the CV header and parses with 0 diagnostics', () => 
   const out = coverLetterDoc(SAMPLE, parse(SAMPLE), letter)
   const doc = parse(out)
   assert.deepEqual(doc.diagnostics, [])
-  assert.equal(doc.header.name ?? out.split('\n')[0], out.split('\n')[0])
+  assert.equal(doc.header.name, 'Alex Morgan')
   assert.ok(out.startsWith(SAMPLE.split('\n').slice(0, 3).join('\n') + '\n\n##\n'))
   assert.equal(doc.sections.length, 1)
   assert.equal(doc.sections[0].title, '')

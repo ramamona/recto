@@ -126,3 +126,126 @@ test('node serve.js prints the URL it listens on', async () => {
   const m = line.match(/^Recto running at http:\/\/127\.0\.0\.1:(\d+)\n$/)
   assert.ok(m, line)
 })
+
+// ---- /api/fetch local proxy (SSRF-safe). Injected DNS + fetch: never touches the real internet.
+
+function request(p, path, { method = 'GET', headers = {} } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: p, path, method, headers }, res => {
+      const chunks = []
+      res.on('data', c => chunks.push(c))
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString()
+        resolve({ status: res.statusCode, headers: res.headers, body, json: /json/.test(res.headers['content-type']) && body ? JSON.parse(body) : null })
+      })
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+const DNS = {
+  'public.example': [{ address: '93.184.216.34', family: 4 }],
+  'public6.example': [{ address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 }],
+  'rebind.example': [{ address: '93.184.216.34', family: 4 }, { address: '10.0.0.5', family: 4 }],
+  'cgnat.example': [{ address: '100.64.1.1', family: 4 }],
+  'ula.example': [{ address: 'fd00::1', family: 6 }]
+}
+const fakeLookup = async host => {
+  if (!DNS[host]) throw Object.assign(new Error('ENOTFOUND'), { code: 'ENOTFOUND' })
+  return DNS[host]
+}
+const fetched = []
+const redirect = to => new Response(null, { status: 302, headers: { location: to } })
+const ROUTES = {
+  'https://public.example/job': () => new Response('<html><head><title>x</title><script>evil()</script></head><body><h1>Engineer</h1><ul><li>Go</li></ul></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+  'https://public6.example/plain': () => new Response('Plain JD', { headers: { 'content-type': 'text/plain' } }),
+  'https://public.example/pdf': () => new Response('%PDF', { headers: { 'content-type': 'application/pdf' } }),
+  'https://public.example/hop': () => redirect('/job'),
+  'https://public.example/to-metadata': () => redirect('http://169.254.169.254/latest/meta-data'),
+  'https://public.example/to-rebind': () => redirect('https://rebind.example/'),
+  'https://public.example/loop': () => redirect('https://public.example/loop'),
+  'https://public.example/big': () => new Response('x'.repeat(2 * 1024 * 1024 + 1), { headers: { 'content-type': 'text/plain' } }),
+  'https://public.example/gone': () => new Response('no', { status: 404, headers: { 'content-type': 'text/plain' } })
+}
+const fakeFetch = async (url, opts) => {
+  fetched.push(String(url))
+  assert.equal(opts.redirect, 'manual')
+  assert.ok(opts.signal instanceof AbortSignal)
+  return ROUTES[String(url)]()
+}
+// Closes the server even when an assertion fails, so a failing test cannot hang the run
+async function withServer(opts, listenOpts, fn) {
+  const s = createServer({ root: dir, ...opts })
+  const { port: p } = await listen(s, { port: 0, ...listenOpts })
+  try { await fn(p) } finally { s.closeAllConnections(); await close(s) }
+}
+const api = (p, url, opts) => request(p, '/api/fetch' + (url === undefined ? '' : '?url=' + encodeURIComponent(url)), opts)
+
+test('/api/fetch returns extracted text for a public target, following safe redirects', async () => {
+  await withServer({ lookup: fakeLookup, fetch: fakeFetch }, {}, async p => {
+    const html = await api(p, 'https://public.example/job')
+    assert.equal(html.status, 200)
+    assert.deepEqual(html.json, { url: 'https://public.example/job', contentType: 'text/html', text: 'Engineer\n• Go' })
+    assert.deepEqual((await api(p, 'https://public6.example/plain')).json, { url: 'https://public6.example/plain', contentType: 'text/plain', text: 'Plain JD' })
+    const hop = await api(p, 'https://public.example/hop')
+    assert.equal(hop.json.url, 'https://public.example/job')
+    assert.equal((await api(p, 'https://public.example/pdf')).status, 415)
+    assert.equal((await api(p, 'https://public.example/big')).status, 413)
+    assert.equal((await api(p, 'https://public.example/gone')).status, 502)
+    assert.equal((await api(p, 'https://public.example/loop')).status, 502)
+    assert.equal(fetched.filter(u => u.endsWith('/loop')).length, 6, 'initial request + 5 redirects')
+  })
+})
+
+test('/api/fetch rejects loopback, private, link-local, CGNAT, ULA and mapped targets before fetching', async () => {
+  await withServer({ lookup: fakeLookup, fetch: fakeFetch }, {}, async p => {
+    fetched.length = 0
+    for (const u of ['http://127.0.0.1/', 'http://10.0.0.1/', 'http://169.254.169.254/latest/meta-data', 'http://[::1]/', 'http://[::ffff:127.0.0.1]/',
+      'http://0.0.0.0/', 'http://192.168.1.1/', 'http://172.16.0.1/', 'http://224.0.0.1/', 'http://[fe80::1]/',
+      'http://2130706433/', 'https://rebind.example/', 'https://cgnat.example/', 'https://ula.example/', 'https://nxdomain.example/']) {
+      const r = await api(p, u)
+      assert.equal(r.status, 403, u)
+      assert.equal(r.json.error, 'blocked', u)
+    }
+    assert.deepEqual(fetched, [])
+    for (const u of ['https://public.example/to-metadata', 'https://public.example/to-rebind']) assert.equal((await api(p, u)).status, 403, u)
+    assert.deepEqual(fetched, ['https://public.example/to-metadata', 'https://public.example/to-rebind'], 'redirect targets are re-checked')
+  })
+})
+
+test('/api/fetch: bad input is 400 (the app probes with HEAD), foreign Host header is 403', async () => {
+  await withServer({ lookup: fakeLookup, fetch: fakeFetch }, {}, async p => {
+    for (const u of [undefined, '', 'not a url', 'file:///etc/passwd', 'ftp://public.example/x', 'javascript:alert(1)', 'http://user:pw@public.example/job']) {
+      assert.equal((await api(p, u)).status, 400, String(u))
+    }
+    const head = await api(p, undefined, { method: 'HEAD' })
+    assert.equal(head.status, 400)
+    assert.equal((await api(p, 'https://public.example/job', { headers: { host: 'evil.example' } })).status, 403)
+    assert.equal((await api(p, 'https://public.example/job', { headers: { host: `localhost:${p}` } })).status, 200)
+  })
+})
+
+test('/api/fetch resolves real hostnames: localhost is blocked', async () => {
+  await withServer({ fetch: () => assert.fail('must not fetch') }, {}, async p => {
+    const r = await api(p, 'http://localhost:1/')
+    assert.equal(r.status, 403)
+  })
+})
+
+test('/api/fetch is disabled (404) when the server is bound to a non-loopback host', async () => {
+  await withServer({ lookup: fakeLookup, fetch: () => assert.fail('must not fetch') }, { host: '0.0.0.0' }, async p => {
+    assert.equal((await api(p, 'https://public.example/job')).status, 404)
+    assert.equal((await api(p, undefined, { method: 'HEAD' })).status, 404)
+  })
+})
+
+test('/api/fetch default fetch pins the checked DNS answer: a rebind between check and connect is blocked', async () => {
+  let calls = 0
+  const rebinding = async () => ++calls === 1 ? [{ address: '93.184.216.34', family: 4 }] : [{ address: '127.0.0.1', family: 4 }]
+  await withServer({ lookup: rebinding }, {}, async p => {
+    const r = await api(p, 'http://sneaky.example/')
+    assert.equal(r.status, 403)
+    assert.equal(calls, 2)
+  })
+})

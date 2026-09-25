@@ -88,7 +88,7 @@ test('openai: request shape, json_schema response_format, parse', async () => {
   assert.equal(url, 'https://api.openai.com/v1/chat/completions')
   assert.equal(init.headers.authorization, 'Bearer sk-o')
   assert.deepEqual(body, {
-    model: 'gpt-5', max_tokens: 50,
+    model: 'gpt-5', max_completion_tokens: 50, // OpenAI rejects max_tokens on gpt-5 / o-series
     messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }],
     response_format: { type: 'json_schema', json_schema: { name: 'suggestions', schema } },
   })
@@ -128,6 +128,9 @@ test('endpoints: openrouter, ollama, lmstudio, custom', async () => {
     assert.equal(s.calls[0].url, url)
     assert.equal(s.calls[0].init.headers.authorization, auth)
   }
+  const s = stub(openaiReply('ok'))
+  await createClient({ provider: 'ollama', model: 'm' }, { fetch: s.fetch }).complete({ messages: [], maxTokens: 9 })
+  assert.equal(s.calls[0].body.max_tokens, 9)
 })
 
 test('listModels per OpenAI-compatible provider', async () => {
@@ -186,7 +189,7 @@ test('test() reports ok or the normalized error', async () => {
 })
 
 test('pkceChallenge matches the RFC 7636 test vector', async () => {
-  assert.equal(await pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWstXjXM'), 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
+  assert.equal(await pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'), 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
 })
 
 test('OpenRouter sign-in: auth URL, stored verifier, code exchange', async () => {
