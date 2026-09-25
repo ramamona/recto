@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-const R = '/Users/narramam/Desktop/personal/cv-builder/src'
+const R = new URL('../src', import.meta.url).href
 const { snap, marginValue, gutterValue, columnResizeOps } = await import(`${R}/ui/handles.js`)
 const { hitDecor, resizeDecor, newDecor, nudgeOps } = await import(`${R}/ui/decor-tools.js`)
 const { defaultLayout, applyLayoutOps, columnGeometry } = await import(`${R}/model/layout.js`)
