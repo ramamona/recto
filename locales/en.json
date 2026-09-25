@@ -510,6 +510,7 @@
   "jobs.status.applied": "Applied",
   "jobs.status.for": "Status of {title}",
   "jobs.status.interview": "Interview",
+  "jobs.status.no-response": "No response",
   "jobs.status.offer": "Offer",
   "jobs.status.rejected": "Rejected",
   "jobs.status.saved": "Saved",
