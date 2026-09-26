@@ -8,7 +8,7 @@ import { PROVIDER_IDS, getConnection, setConnection, forgetConnection, hasConsen
 /** Fired on window whenever the active connection changes (top bar, Suggest tab). */
 export const AI_EVENT = 'recto:ai'
 const DEFAULT_MODEL = { anthropic: PROVIDERS.anthropic.defaultModel, openrouter: 'openrouter/auto' }
-const HOSTS = { anthropic: 'api.anthropic.com', openai: 'api.openai.com', openrouter: 'openrouter.ai', ollama: 'localhost:11434', lmstudio: 'localhost:1234' }
+const HOSTS = { anthropic: 'api.anthropic.com', openai: 'api.openai.com', openrouter: 'openrouter.ai', gemini: 'generativelanguage.googleapis.com', github: 'models.github.ai', ollama: 'localhost:11434', lmstudio: 'localhost:1234' }
 
 const blank = s => !String(s ?? '').trim()
 const changed = () => dispatchEvent(new Event(AI_EVENT))

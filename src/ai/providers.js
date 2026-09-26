@@ -7,6 +7,10 @@ export const PROVIDERS = {
   anthropic: { auth: 'key', defaultModel: 'claude-sonnet-5' },
   openai: { auth: 'key', base: 'https://api.openai.com/v1' },
   openrouter: { auth: 'oauth', base: 'https://openrouter.ai/api/v1' },
+  // Google's OpenAI-compatible Gemini endpoint (API key from Google AI Studio)
+  gemini: { auth: 'key', base: 'https://generativelanguage.googleapis.com/v1beta/openai', defaultModel: 'gemini-2.5-flash' },
+  // GitHub Models: GitHub token with models:read (Copilot's own chat API is not open to third-party apps)
+  github: { auth: 'key', base: 'https://models.github.ai/inference', defaultModel: 'openai/gpt-4.1', catalog: 'https://models.github.ai/catalog/models' },
   ollama: { auth: 'none', base: 'http://localhost:11434/v1', local: true },
   lmstudio: { auth: 'none', base: 'http://localhost:1234/v1', local: true },
   custom: { auth: 'optional' },
@@ -137,10 +141,17 @@ function openaiClient(conn, fetch) {
       return result(text, json ? tryJson(text) : undefined, usageOf(data.usage?.prompt_tokens, data.usage?.completion_tokens))
     },
     async listModels() {
+      const catalog = PROVIDERS[conn.provider].catalog
+      if (catalog) {
+        const list = await request(catalog, { headers }, { fetch, provider: conn.provider })
+        if (!Array.isArray(list)) throw new AiError('bad-response', 'Unexpected response shape')
+        return list.map(m => m?.id).filter(id => typeof id === 'string').sort()
+      }
       const data = await request(`${base}/models`, { headers }, { fetch, provider: conn.provider })
       if (!Array.isArray(data?.data)) throw new AiError('bad-response', 'Unexpected response shape')
       let ids = data.data.map(m => m?.id).filter(id => typeof id === 'string')
       if (conn.provider === 'openai') ids = ids.filter(id => /^(gpt-|o\d|chatgpt)/.test(id) && !/realtime|audio|transcribe|tts|image|search|embedding/.test(id))
+      if (conn.provider === 'gemini') ids = ids.map(id => id.replace(/^models\//, '')).filter(id => /^gemini/.test(id))
       return ids.sort()
     },
   }

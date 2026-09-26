@@ -19,6 +19,8 @@ Open **AI** in the top bar. Six provider cards:
 | **Anthropic** | An API key from [console.anthropic.com](https://console.anthropic.com). |
 | **OpenAI** | An API key from [platform.openai.com](https://platform.openai.com). |
 | **OpenRouter** | Click **Sign in** — this opens openrouter.ai, and you're redirected back with a key. No key to copy by hand. |
+| **Google Gemini** | Paste an API key from [Google AI Studio](https://aistudio.google.com/apikey). Recto uses Gemini's OpenAI-compatible endpoint; pick any `gemini-*` model from the list. |
+| **GitHub Models** | Paste a GitHub token with the `models:read` permission (fine-grained token). GitHub Models is free within limits and has higher limits for Copilot subscribers. Copilot's own chat API isn't available to third-party apps, so this is the supported way to use your GitHub/Copilot access. Model ids look like `openai/gpt-4.1`. |
 | **Ollama** (local) | Run Ollama on your machine, pull a model, and set `OLLAMA_ORIGINS` (see below). No key needed. |
 | **LM Studio** (local) | Run LM Studio's local server with CORS enabled (see below). No key needed. |
 | **Custom** | Any OpenAI-compatible server (vLLM, Together, Groq, an Azure-compatible gateway, your own stub for testing…). You must provide a base URL; a model key is optional. |

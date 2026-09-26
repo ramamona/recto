@@ -11,7 +11,7 @@ function memStorage(init = {}) {
 const conn = { provider: 'openai', model: 'gpt-5', apiKey: 'sk-1', remember: false }
 
 test('PROVIDER_IDS', async () => {
-  assert.deepEqual((await load()).PROVIDER_IDS, ['anthropic', 'openai', 'openrouter', 'ollama', 'lmstudio', 'custom'])
+  assert.deepEqual((await load()).PROVIDER_IDS, ['anthropic', 'openai', 'openrouter', 'gemini', 'github', 'ollama', 'lmstudio', 'custom'])
 })
 
 test('connection lives in memory only unless remember', async () => {

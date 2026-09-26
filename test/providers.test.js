@@ -20,7 +20,7 @@ const openaiReply = (content, extra = {}) => json({ choices: [{ message: { role:
 const schema = { title: 'suggestions', type: 'object', properties: { suggestions: { type: 'array' } }, required: ['suggestions'] }
 
 test('PROVIDERS lists the six connection types', () => {
-  assert.deepEqual(Object.keys(PROVIDERS), ['anthropic', 'openai', 'openrouter', 'ollama', 'lmstudio', 'custom'])
+  assert.deepEqual(Object.keys(PROVIDERS), ['anthropic', 'openai', 'openrouter', 'gemini', 'github', 'ollama', 'lmstudio', 'custom'])
   assert.equal(PROVIDERS.anthropic.defaultModel, 'claude-sonnet-5')
 })
 
@@ -215,4 +215,28 @@ test('OpenRouter sign-in: auth URL, stored verifier, code exchange', async () =>
   mem.set('recto:openrouter-verifier', 'v')
   const bad = await finishOpenRouterSignIn('c', { fetch: stub(json({}, 403)).fetch, storage }).catch(x => x)
   assert.equal(bad.code, 'auth')
+})
+
+test('gemini and github models use their OpenAI-compatible endpoints and bearer keys', async () => {
+  for (const [conn, url] of [
+    [{ provider: 'gemini', apiKey: 'g-key' }, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'],
+    [{ provider: 'github', apiKey: 'gh-token' }, 'https://models.github.ai/inference/chat/completions'],
+  ]) {
+    let seen
+    const fetch = async (u, init) => { seen = { u, init }; return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200, headers: { 'content-type': 'application/json' } }) }
+    const r = await createClient(conn, { fetch }).complete({ messages: [{ role: 'user', content: 'hi' }] })
+    assert.equal(r.text, 'ok')
+    assert.equal(seen.u, url)
+    assert.equal(seen.init.headers.authorization, `Bearer ${conn.apiKey}`)
+    assert.ok(JSON.parse(seen.init.body).model)
+  }
+})
+
+test('model lists: gemini strips models/ prefix, github reads its catalog', async () => {
+  const gem = async () => new Response(JSON.stringify({ data: [{ id: 'models/gemini-2.5-pro' }, { id: 'models/embedding-001' }] }), { status: 200 })
+  assert.deepEqual(await createClient({ provider: 'gemini', apiKey: 'k' }, { fetch: gem }).listModels(), ['gemini-2.5-pro'])
+  let url
+  const gh = async u => { url = u; return new Response(JSON.stringify([{ id: 'openai/gpt-4.1' }, { id: 'meta/llama-4' }]), { status: 200 }) }
+  assert.deepEqual(await createClient({ provider: 'github', apiKey: 'k' }, { fetch: gh }).listModels(), ['meta/llama-4', 'openai/gpt-4.1'])
+  assert.equal(url, 'https://models.github.ai/catalog/models')
 })
