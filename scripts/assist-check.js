@@ -5,9 +5,9 @@
 // Driven through window.recto (store, ctx) wherever possible (panel switching, the tracker, the doc list) and
 // through src/ui/assist-panel.js's and src/ui/job-panel.js's own class names otherwise, since neither module
 // exposes data-testid hooks. Selectors relied on (all scoped to avoid the locale-dependent button text):
-//   .as-bar .ui-btn--primary        Suggest tab: "Improve with AI" button
+//   [data-action="ai-analyse"]      Suggest tab: "Analyse my CV" / "Re-analyse" button
 //   .as-card, .is-ok / .is-new-facts / .is-stale / .is-invalid   diff cards, status is a class
-//   .as-bar > button:not(.ui-btn--primary)   Suggest tab: "Accept all safe" button (only rendered once shown)
+//   [data-action="ai-accept-all"]   Suggest tab: "Accept all safe" button (only rendered once shown)
 //   #job-input                      Job tab: paste-a-link-or-description textarea (job-panel.js sets this id)
 //   .job-form__bar button           Job tab: "Analyze" button
 //   .job-gauge__num                 Job tab: match gauge's number (SVG <text>)
@@ -168,14 +168,14 @@ async function connectStubProvider(page, stubUrl) {
 
 async function suggestFlow(page, problems) {
   await page.evaluate("window.recto.store.setUi({ panel: 'suggest' })", { awaitPromise: false })
-  await waitUntil(page, `document.querySelector('.as-bar .ui-btn--primary')`, { what: '"Improve with AI" button' })
+  await waitUntil(page, `document.querySelector('[data-action="ai-analyse"]')`, { what: '"Analyse my CV" button' })
   const before = await page.evaluate('window.recto.store.state.content', { awaitPromise: false })
-  await click(page, '.as-bar .ui-btn--primary')
+  await click(page, '[data-action="ai-analyse"]')
   await waitUntil(page, `document.querySelectorAll('.as-card').length >= 2`, { what: 'diff cards' })
   const statuses = await page.evaluate(`[...document.querySelectorAll('.as-card')].map(c => [...c.classList].find(k => k.startsWith('is-')))`, { awaitPromise: false })
   if (!statuses.includes('is-new-facts')) problems.push(`expected a "new facts" card among ${JSON.stringify(statuses)}`)
-  await waitUntil(page, `document.querySelector('.as-bar > button:not(.ui-btn--primary)')`, { what: '"Accept all safe" button' })
-  await click(page, '.as-bar > button:not(.ui-btn--primary)')
+  await waitUntil(page, `document.querySelector('[data-action="ai-accept-all"]')`, { what: '"Accept all safe" button' })
+  await click(page, '[data-action="ai-accept-all"]')
   await waitUntil(page, `window.recto.store.state.content !== ${JSON.stringify(before)}`, { what: 'content changed after accept all safe' })
   const after = await page.evaluate('window.recto.store.state.content', { awaitPromise: false })
   if (after.includes('Globex Corp')) problems.push('the "new facts" card was applied by Accept all safe')

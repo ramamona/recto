@@ -42,6 +42,19 @@ export function safeEdits(cards, content) {
     .map(c => ({ line: c.line, expect: c.expect, text: c.replacement }))
 }
 
+const CATEGORIES = ['impact', 'clarity', 'keyword', 'concision', 'grammar', 'structure']
+
+/** Cards grouped by category in CATEGORIES order (unknown ones last), each group sorted by line: [[category, cards]]. */
+export function groupCards(cards) {
+  const rank = c => { const i = CATEGORIES.indexOf(c); return i < 0 ? CATEGORIES.length : i }
+  const groups = new Map()
+  for (const c of [...cards].sort((a, b) => rank(a.category) - rank(b.category) || a.line - b.line)) {
+    if (!groups.has(c.category)) groups.set(c.category, [])
+    groups.get(c.category).push(c)
+  }
+  return [...groups]
+}
+
 /** The client with an abort signal on every completion, so Cancel stops the request. */
 export const withSignal = (client, signal) => ({ ...client, complete: o => client.complete({ ...o, signal }) })
 
@@ -60,7 +73,10 @@ export function mountAssistPanel(root, store, ctx) {
   const toast = (key, vars, opts) => ctx.toast?.(t(key, vars), opts)
   const cards = () => ctx.assistQueue.get(store.state.docId) ?? []
   const setCards = list => { ctx.assistQueue.set(store.state.docId, list); render() }
-  const button = (label, onClick, cls = '') => h('button', { type: 'button', class: `ui-btn ui-btn--sm ${cls}`.trim(), onClick }, label)
+  const button = (label, onClick, cls = '', action) => h('button', { type: 'button', class: `ui-btn ui-btn--sm ${cls}`.trim(), dataset: action ? { action } : undefined, onClick }, label)
+
+  let error = null // { code, task } of the last failed run, shown inline
+  let done = null // docId whose last run finished, so an empty result can say so
 
   /** Run an AI task (`assist => Promise<{ suggestions }>`) with consent, spinner and Cancel; cards land in this tab. */
   async function run(task) {
@@ -70,24 +86,27 @@ export function mountAssistPanel(root, store, ctx) {
     busy?.abort()
     const ac = new AbortController()
     busy = ac
+    error = null
     const docId = store.state.docId
     store.setUi({ panel: 'suggest' })
+    render()
     try {
       const { suggestions } = await task(createAssist({ client: withSignal(c, ac.signal), getState }))
       if (ac.signal.aborted || store.state.docId !== docId) return
       const old = cards().filter(o => !suggestions.some(s => s.line === o.line))
+      done = docId
       setCards([...suggestions, ...old])
-      if (!visibleCards(suggestions, store.state.content).length) toast('suggest.ai.none')
     } catch (e) {
       if (ac.signal.aborted || e.code === 'aborted') return
       if (!e.code) console.error('recto: assist failed', e)
-      toast(`ai.error.${e.code ?? 'bad-response'}`, null, { action: { label: t('suggest.retry'), run: () => run(task) } })
+      error = { code: e.code ?? 'bad-response', task }
     } finally {
       if (busy === ac) busy = null
       render()
     }
   }
   ctx.runAssist = run
+  const analyse = () => run(a => a.suggest())
 
   function cancel() {
     busy?.abort()
@@ -139,18 +158,42 @@ export function mountAssistPanel(root, store, ctx) {
   }
 
   function aiSection(s) {
+    const head = h('h3', { class: 'ui-group__title' }, t('suggest.ai.title'))
+    const conn = client() && getConnection()
+    if (!conn) {
+      return h('section', { class: 'pnl-group as-ai' }, head,
+        h('p', { class: 'as-intro' }, t('suggest.ai.intro')),
+        h('button', { type: 'button', class: 'ui-btn ui-btn--primary', dataset: { action: 'ai-connect-open' }, onClick: () => ctx.openAiDialog?.() }, t('suggest.ai.connect')))
+    }
     const shown = visibleCards(cards(), s.content)
     const safe = safeEdits(shown, s.content)
-    const connected = !!client()
-    return h('section', { class: 'pnl-group as-ai' },
-      h('div', { class: 'as-bar' },
-        busy
-          ? [h('span', { class: 'as-spinner', role: 'status' }, t('suggest.ai.working')), button(t('suggest.ai.cancel'), cancel)]
-          : h('button', { type: 'button', class: 'ui-btn ui-btn--sm ui-btn--primary', disabled: !connected, onClick: () => run(a => a.suggest()) }, t('suggest.ai.improve')),
-        !connected && h('button', { type: 'button', class: 'ed-link-btn', onClick: () => ctx.openAiDialog?.() }, t('suggest.ai.connect')),
-        h('span', { class: 'ui-spacer' }),
-        safe.length > 0 && button(t('suggest.ai.acceptAll', { n: safe.length }), () => apply(safe))),
-      shown.length > 0 && h('ul', { class: 'as-cards' }, shown.map(card)))
+    const using = h('p', { class: 'as-using' },
+      t('suggest.ai.using', { provider: t(`ai.provider.${conn.provider}`), model: conn.model || '—' }), ' ',
+      h('button', { type: 'button', class: 'ed-link-btn', onClick: () => ctx.openAiDialog?.() }, t('suggest.ai.change')))
+    let body
+    if (busy) {
+      body = h('div', { class: 'as-bar' }, h('span', { class: 'as-spinner', role: 'status' }, t('suggest.ai.working')), button(t('suggest.ai.cancel'), cancel))
+    } else if (error) {
+      const task = error.task
+      body = h('div', { class: 'as-error', role: 'alert' },
+        h('p', null, t(`ai.error.${error.code}`)), button(t('suggest.retry'), () => run(task), 'ui-btn--primary'))
+    } else if (shown.length) {
+      body = [
+        h('p', { class: 'as-summary' }, t('suggest.ai.summary', { n: shown.length, m: safe.length })),
+        h('div', { class: 'as-bar' },
+          safe.length > 0 && button(t('suggest.ai.acceptAll', { n: safe.length }), () => apply(safe), 'ui-btn--primary', 'ai-accept-all'),
+          button(t('suggest.ai.reanalyse'), analyse, '', 'ai-analyse')),
+        groupCards(shown).map(([cat, list]) => [
+          h('h4', { class: 'as-group' }, t(`suggest.category.${cat}`)),
+          h('ul', { class: 'as-cards' }, list.map(card))]),
+      ]
+    } else {
+      body = [
+        done === s.docId && h('p', { class: 'as-summary' }, t('suggest.ai.none')),
+        h('button', { type: 'button', class: 'ui-btn ui-btn--primary', dataset: { action: 'ai-analyse' }, onClick: analyse }, t(done === s.docId ? 'suggest.ai.reanalyse' : 'suggest.ai.analyse')),
+      ]
+    }
+    return h('section', { class: 'pnl-group as-ai' }, head, using, body)
   }
 
   function localSection(s) {
@@ -175,6 +218,7 @@ export function mountAssistPanel(root, store, ctx) {
     if (['content', 'doc', 'docId', 'ui', 'layout'].some(k => changed.has(k))) render(s)
   })
   addEventListener('recto:ai', () => render()) // AI_EVENT from ai-dialog.js: connected / disconnected
+  document.addEventListener('close', () => render(), true) // any <dialog> closing (close doesn't bubble; capture does)
   render()
   return { run }
 }

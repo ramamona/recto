@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { wordDiff, visibleCards, safeEdits, withSignal } from '../src/ui/assist-panel.js'
+import { wordDiff, visibleCards, safeEdits, withSignal, groupCards } from '../src/ui/assist-panel.js'
 
 const side = (parts, op) => parts.filter(([o]) => o === '=' || o === op).map(([, s]) => s).join('')
 
@@ -53,4 +53,10 @@ test('withSignal passes the abort signal to every complete() call', async () => 
   await wrapped.complete({ messages: [] })
   assert.equal(seen[0].signal, signal)
   assert.equal(wrapped.listModels, client.listModels)
+})
+
+test('groupCards: category order, each group sorted by line', () => {
+  const c = (category, line) => ({ category, line })
+  const out = groupCards([c('grammar', 9), c('impact', 5), c('grammar', 2), c('impact', 1)])
+  assert.deepEqual(out.map(([k, l]) => [k, l.map(x => x.line)]), [['impact', [1, 5]], ['grammar', [2, 9]]])
 })

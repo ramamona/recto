@@ -118,6 +118,12 @@
 }
 @keyframes as-spin { to { transform: rotate(1turn); } }
 @media (prefers-reduced-motion: reduce) { .as-spinner::before { animation-duration: 3s; } }
+.as-intro, .as-using, .as-summary { margin: 0 0 8px; font-size: var(--ui-size-sm); }
+.as-using { color: var(--ui-muted); }
+.as-summary { font-weight: 600; }
+.as-error { padding: 8px 10px; border-radius: var(--ui-radius-sm); background: var(--ui-error-soft); color: var(--ui-error); }
+.as-error p { margin: 0 0 6px; }
+.as-group { margin: 10px 0 6px; font-size: var(--ui-size-sm); color: var(--ui-muted); }
 .as-cards { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .as-card { padding: 8px; border: 1px solid var(--ui-border); border-left: 3px solid var(--ui-ok); border-radius: var(--ui-radius-sm); background: var(--ui-surface); }
 .as-card.is-new-facts { border-left-color: var(--ui-warn); }

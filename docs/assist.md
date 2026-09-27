@@ -47,7 +47,7 @@ Enter the server's base URL (Recto appends `/chat/completions` itself) and, if t
 
 ## What each feature does
 
-- **Improve with AI** (Suggest tab): rewrites weak bullets and openers, one diff card per change.
+- **AI suggestions** (top of the Suggest tab): with no provider it explains what it does and offers *Connect AI providers*; once connected it shows the provider and model and an *Analyse my CV* button. Results appear as diff cards grouped by category with an "N suggestions · M safe to apply" summary, *Accept all safe* and *Re-analyse*; errors show inline with Retry.
 - **✨ Rewrite** (Editor): select some text for a targeted rewrite (stronger, shorter, quantify, fix grammar, more formal, or your own instruction).
 - **Tailor CV** (Job tab): duplicates the open CV as "\<name\> — \<company\>", linked to the job, and queues cards that lean into the posting's wording for skills you already have.
 - **Evaluate with AI** (Job tab): a 1–5 fit score, a recommendation, per-requirement verdicts with evidence cited from your CV, gaps, level fit and a short pitch — saved on the job in your tracker.
