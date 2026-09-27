@@ -1,5 +1,6 @@
 // High-level AI features (assist spec §6): prompt → client → tolerant parse (one retry) → validate/normalize.
 import * as P from './prompts.js'
+import { loadPlaybook as defaultLoadPlaybook } from './playbook.js'
 import { parseJsonLoose, validateSuggestions } from './guard.js'
 import { categorize } from '../model/categories.js'
 import { escLine } from '../io/jsonresume.js'
@@ -16,11 +17,16 @@ const hasSuggestions = j => isObj(j) && Array.isArray(j.suggestions)
 
 /**
  * `client` is a createClient() result (or null when no provider is connected);
- * `getState()` returns `{ content, doc }` for the active CV.
+ * `getState()` returns `{ content, doc }` for the active CV. The playbook loads once, on first use;
+ * if it fails, prompts use their built-in FALLBACK text.
  */
-export function createAssist ({ client, getState }) {
-  async function ask (prompt, valid) {
+export function createAssist ({ client, getState, loadPlaybook = defaultLoadPlaybook }) {
+  let playbook
+  const pb = () => (playbook ??= Promise.resolve().then(() => loadPlaybook()).catch(() => null))
+
+  async function ask (makePrompt, valid) {
     if (!client) throw fail('no-client', 'Connect an AI provider first.')
+    const prompt = makePrompt(await pb())
     let messages = prompt.messages
     let error
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -48,15 +54,15 @@ export function createAssist ({ client, getState }) {
 
   return {
     async suggest () {
-      const j = await ask(P.suggestPrompt({ source: getState().content }), hasSuggestions)
+      const j = await ask(b => P.suggestPrompt({ source: getState().content }, b), hasSuggestions)
       return { suggestions: validate(j.suggestions) }
     },
     async rewrite (lines, instruction) {
-      const j = await ask(P.rewritePrompt({ source: getState().content, lines, instruction }), hasSuggestions)
+      const j = await ask(b => P.rewritePrompt({ source: getState().content, lines, instruction }, b), hasSuggestions)
       return { suggestions: validate(j.suggestions) }
     },
     async tailor (job) {
-      const j = await ask(P.tailorPrompt({ source: getState().content, job }), hasSuggestions)
+      const j = await ask(b => P.tailorPrompt({ source: getState().content, job }, b), hasSuggestions)
       // Job keywords count as known facts on skills lines only (spec §6).
       const skills = skillsLines(getState().doc)
       const keywords = strings(job?.keywords)
@@ -70,16 +76,16 @@ export function createAssist ({ client, getState }) {
     async evaluate (job, { local } = {}) {
       const st = getState()
       const base = local ?? evaluateJob({ source: st.content, doc: st.doc, layout: st.layout }, job)
-      const j = await ask(P.evaluatePrompt({ source: st.content, job, rows: base.rows }), j => isObj(j) && Number.isFinite(Number(j.score)))
+      const j = await ask(b => P.evaluatePrompt({ source: st.content, job, rows: base.rows }, b), j => isObj(j) && Number.isFinite(Number(j.score)))
       return mergeEvaluation(base, j, st)
     },
     async coverLetter (job) {
-      const j = await ask(P.coverLetterPrompt({ source: getState().content, job }), j => isObj(j) && Array.isArray(j.paragraphs))
+      const j = await ask(b => P.coverLetterPrompt({ source: getState().content, job }, b), j => isObj(j) && Array.isArray(j.paragraphs))
       const subject = str(j.subject).trim()
       return { ...(subject ? { subject } : {}), paragraphs: strings(j.paragraphs) }
     },
     async extractJob (text) {
-      return normalizeJob(await ask(P.extractJobPrompt({ text }), isObj))
+      return normalizeJob(await ask(b => P.extractJobPrompt({ text }, b), isObj))
     },
   }
 }

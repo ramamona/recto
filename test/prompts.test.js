@@ -86,3 +86,67 @@ test('evaluate prompt: two passes, the JD is untrusted data, local rows are pass
   assert.ok(t.includes('[critical] We need Go and Kubernetes.'))
   assert.ok(t.indexOf('untrusted') < t.indexOf('Job posting:'))
 })
+
+// ---------- playbook ----------
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { loadPlaybook } from '../src/ai/playbook.js'
+
+const PLAYBOOK = {
+  core: 'CORE-TEXT', writing: 'WRITING-TEXT', grammar: 'GRAMMAR-TEXT',
+  modes: { review: 'MODE-review', rewrite: 'MODE-rewrite', tailor: 'MODE-tailor', evaluate: 'MODE-evaluate', coverLetter: 'MODE-coverLetter', extractJob: 'MODE-extractJob' },
+}
+const withPlaybook = {
+  review: ['suggestPrompt', builders.suggestPrompt, true],
+  rewrite: ['rewritePrompt', builders.rewritePrompt, true],
+  tailor: ['tailorPrompt', builders.tailorPrompt, true],
+  evaluate: ['evaluatePrompt', builders.evaluatePrompt, false],
+  coverLetter: ['coverLetterPrompt', builders.coverLetterPrompt, true],
+  extractJob: ['extractJobPrompt', { text: 'Go job' }, false],
+}
+
+test('with a playbook: core, writing (writing modes only), grammar, the mode file, then the rule', () => {
+  for (const [mode, [name, args, writing]] of Object.entries(withPlaybook)) {
+    const s = P[name](args, PLAYBOOK).system
+    const at = k => s.indexOf(k)
+    assert.ok(at('CORE-TEXT') === 0, mode)
+    assert.equal(s.includes('WRITING-TEXT'), writing, mode)
+    assert.ok(at('GRAMMAR-TEXT') > at('CORE-TEXT'), mode)
+    assert.ok(at(`MODE-${mode}`) > at('GRAMMAR-TEXT'), mode)
+    for (const other of Object.keys(PLAYBOOK.modes)) if (other !== mode) assert.ok(!s.includes(`MODE-${other}`), `${mode} has ${other}`)
+    assert.ok(at(P.NO_FABRICATION) > at(`MODE-${mode}`), mode)
+    assert.ok(!s.includes(P.FALLBACK), mode)
+  }
+})
+
+test('without a playbook: the built-in FALLBACK text', () => {
+  assert.equal(P.suggestPrompt({ source: SOURCE }).system, P.FALLBACK)
+  assert.equal(P.suggestPrompt({ source: SOURCE }, null).system, P.FALLBACK)
+  assert.ok(P.FALLBACK.includes(P.GRAMMAR) && P.FALLBACK.includes(P.NO_FABRICATION))
+})
+
+test('loadPlaybook reads every file through the injected reader; a missing file rejects', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'recto-pb-'))
+  try {
+    await mkdir(join(dir, 'agent/modes'), { recursive: true })
+    const files = ['recto', 'writing', 'grammar', 'modes/review', 'modes/rewrite', 'modes/tailor', 'modes/evaluate', 'modes/cover-letter', 'modes/extract-job']
+    for (const f of files) await writeFile(join(dir, `agent/${f}.md`), `# ${f}\n`)
+    const { readFile } = await import('node:fs/promises')
+    const read = p => readFile(join(dir, p), 'utf8')
+    const pb = await loadPlaybook({ read })
+    assert.equal(pb.core, '# recto')
+    assert.equal(pb.modes.coverLetter, '# modes/cover-letter')
+    assert.equal(pb.modes.extractJob, '# modes/extract-job')
+    await rm(join(dir, 'agent/modes/tailor.md'))
+    await assert.rejects(loadPlaybook({ read }))
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
+test('the real playbook files load and go into prompts', { skip: !existsSync(new URL('../agent/modes/extract-job.md', import.meta.url)) && 'agent/ playbook not written yet' }, async () => {
+  const pb = await loadPlaybook()
+  for (const v of [pb.core, pb.writing, pb.grammar, ...Object.values(pb.modes)]) assert.ok(v.length > 0)
+  const s = P.tailorPrompt(builders.tailorPrompt, pb).system
+  assert.ok(s.includes(pb.core) && s.includes(pb.modes.tailor) && s.includes(P.NO_FABRICATION))
+})

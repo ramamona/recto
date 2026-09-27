@@ -3,3 +3,7 @@ out/
 .DS_Store
 *.log
 .superpowers/
+profile.json
+*.cv.json
+!samples/*.cv.json
+edits.json

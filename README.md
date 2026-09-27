@@ -60,6 +60,10 @@ See [docs/cli.md](docs/cli.md) for the input formats, the exit codes and a CI ex
 
 Everything above works with no AI at all: local suggestions, a local ATS match score against a pasted job description, legitimacy checks and the job tracker are all on by default and never leave your machine. Connecting a provider — an API key, OpenRouter sign-in, or a local Ollama/LM Studio server — adds AI-backed suggestions, tailoring, fit evaluation and cover letters on top. AI only proposes: every change comes back as a diff card you accept, reject or edit per item, and a card that would add a fact your CV doesn't already have is flagged and excluded from "Accept all". See [docs/assist.md](docs/assist.md) for how to connect each provider, what gets sent and to whom, and what the match score and legitimacy flags mean.
 
+## Use Recto as your AI CV assistant
+
+Recto's agent playbook lives in [`agent/`](agent) as plain Markdown and powers both the in-app AI and AI coding CLIs. Open this repo in Claude Code, Codex or Gemini CLI next to your CV and ask it to review your CV, evaluate a job, tailor your CV or draft a cover letter: it uses Recto's own checks and scoring, shows every change as a diff, and never invents facts or submits anything. See [docs/agent.md](docs/agent.md).
+
 ## Privacy
 
 Recto has no accounts, no backend, no analytics and no telemetry. Your CV lives in your browser's `localStorage`, uploaded fonts live in IndexedDB, and copies exist only in files you save. AI is off by default: nothing leaves your machine until you connect a provider and confirm what gets sent, and only your chosen provider ever sees your CV. The app never submits applications or sends messages on your behalf. A strict Content-Security-Policy limits requests to your own origin plus, only once you've connected a provider, that provider's endpoint (HTTPS, or `localhost`/`127.0.0.1` for a local model server); custom CSS still cannot load a remote `url(https://…)`. A hosted instance serves static files and never receives your data.
@@ -78,6 +82,7 @@ Page breaks come from real font metrics. The built-in font stacks end in metric-
 - [Self-hosting](docs/self-hosting.md)
 - [CLI](docs/cli.md)
 - [AI & jobs assist](docs/assist.md)
+- [The Recto agent (AI CV assistant for the app and AI CLIs)](docs/agent.md)
 - [Architecture and manual QA checklist](docs/architecture.md)
 
 ## Contributing

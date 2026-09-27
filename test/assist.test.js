@@ -178,3 +178,18 @@ test('coverLetterDoc without a CV header still parses', () => {
   const out = coverLetterDoc('', parse(''), { paragraphs: ['Hello'] })
   assert.deepEqual(parse(out).diagnostics, [])
 })
+
+test('the playbook loads once per assist and reaches the prompt; a failed load falls back', async () => {
+  let loads = 0
+  const pb = { core: 'PB-CORE', writing: 'W', grammar: 'G', modes: { review: 'M' } }
+  const client = fakeClient(JSON.stringify({ suggestions: [] }), JSON.stringify({ suggestions: [] }))
+  const a = createAssist({ client, getState: () => state, loadPlaybook: async () => { loads++; return pb } })
+  await a.suggest()
+  await a.suggest()
+  assert.equal(loads, 1)
+  assert.ok(client.calls[0].system.startsWith('PB-CORE'))
+  assert.ok(client.calls[0].system.includes('Only rephrase'))
+  const c2 = fakeClient(JSON.stringify({ suggestions: [] }))
+  await createAssist({ client: c2, getState: () => state, loadPlaybook: () => { throw new Error('404') } }).suggest()
+  assert.ok(c2.calls[0].system.startsWith('You are a careful CV editor'))
+})

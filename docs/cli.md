@@ -5,6 +5,11 @@
 ```
 node cli/recto.js export <in> -o <out> [--template <id>]
 node cli/recto.js check <in> [--template <id>]
+node cli/recto.js ats <in> [--template <id>] [--json]
+node cli/recto.js evaluate <in> --job <file.txt|url> [--profile <profile.json>] [--json]
+node cli/recto.js tips <in> [--json]
+node cli/recto.js apply <in> --edits <edits.json> [--allow-new-facts] [-o <out>] [--json]
+node cli/recto.js profile [--set key=value ...] [--file <profile.json>] [--json]
 node cli/recto.js --help
 ```
 
@@ -51,12 +56,60 @@ warn  page 1: Your layout has more than one column with text. Applicant tracking
 
 Each line is `severity`, the source line or page, the message and the rule id in brackets. `check` renders the CV in the browser so it can run every rule, including page overflow, target pages, font sizes, contrast and missing fonts. If no browser can be started, it says so on stderr and runs only the content rules (contact details, dates, bullets, headings, markup and so on).
 
+## Tools for agents
+
+`ats`, `evaluate`, `tips`, `apply` and `profile` are deterministic (no AI) and meant for scripts and coding agents. Each takes the same inputs as `export`. With `--json` they print one JSON value to stdout; otherwise readable text.
+
+### `ats`
+
+The ATS report from the app's Review tab: a 0–100 score, grade A–F, eight weighted checks with their items, and the fields an ATS would fill in (`{ score, grade, checks: [{ id, weight, earned, items }], fields }`). Like `check`, it renders in the browser when one is available and otherwise runs on content only, with a note on stderr. Exits 1 on grade F or any `critical` item.
+
+```sh
+node cli/recto.js ats cv.cv.json
+node cli/recto.js ats cv.md --template classic --json | jq .grade
+```
+
+### `evaluate`
+
+Scores the CV against a job posting, as the Job tab does locally: role summary, gates (posting still open, location, work authorization, deal-breakers), a requirement table with the CV line that supports each one, a 1–5 score and a recommendation (apply, consider, skip), and legitimacy signals. `--job` is a text file or a URL; Greenhouse, Lever and Ashby links use their public APIs, other pages are fetched and reduced to text. If a URL can't be fetched, save the posting to a file. `--profile` (default `./profile.json` when present) supplies the candidate profile for the gates.
+
+```sh
+node cli/recto.js evaluate cv.cv.json --job posting.txt
+node cli/recto.js evaluate cv.md --job https://boards.greenhouse.io/acme/jobs/123 --json
+```
+
+### `tips`
+
+The Suggest tab's writing tips for each bullet (weak opener, no metric, passive voice, filler words, long bullets, repeated verbs), as `[{ line, code, message, vars, fix? }]` with `--json`.
+
+```sh
+node cli/recto.js tips cv.md
+```
+
+### `apply`
+
+Applies line edits, such as an agent's suggestions, with the same guard the app uses for AI suggestions. `edits.json` is an array of `{ "line": 12, "expect": "<the line's current text>", "replacement": "<the new line>" }`. An edit is refused when `expect` no longer matches (stale), when the replacement changes the kind of line (a bullet must stay a bullet, an entry keeps its fields), or when it adds facts that are not in the CV: new numbers, names or links. Pass `--allow-new-facts` only after checking those facts are true. Accepted edits are printed as a diff and written to `-o`, or back to the input file (Markdown stays Markdown, a `.cv.json` stays a Recto file, JSON Resume stays JSON Resume). Refusals go to stderr, and the exit code is 1 if any edit was refused.
+
+```sh
+node cli/recto.js apply cv.md --edits edits.json
+node cli/recto.js apply cv.cv.json --edits edits.json -o cv.edited.cv.json --json
+```
+
+### `profile`
+
+Reads or updates the candidate profile in `./profile.json` (or `--file`): `authorizedIn`, `needsSponsorship`, `locations`, `remote` (`remote`, `hybrid`, `onsite`, `any`), `targetRoles`, `dealBreakers`, `salaryMin`, `currency`. List values are comma-separated. Unknown keys are dropped.
+
+```sh
+node cli/recto.js profile --set locations="Berlin, Remote" --set needsSponsorship=true --set dealBreakers="on-call"
+node cli/recto.js profile --json
+```
+
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success. For `check`: no errors (warnings and info don't fail). |
-| 1 | `check` found at least one error, or `export` wrote a PDF whose page count differs from the render. |
+| 1 | `check` found at least one error, `export` wrote a PDF whose page count differs from the render, `ats` graded F or found a critical item, or `apply` refused an edit. |
 | 2 | Usage error, unreadable or invalid input, unknown template, or a failure such as no browser for a PDF. |
 
 Warnings (for example, JSON Resume fields that have no Recto equivalent) and errors go to stderr.

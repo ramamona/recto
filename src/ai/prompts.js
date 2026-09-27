@@ -73,27 +73,38 @@ const JOB = obj('job', {
 /** Source with 1-based line numbers, e.g. "12│ - Led …", so replies can cite `line` and `expect` exactly. */
 export const numberSource = source => String(source ?? '').split('\n').map((l, i) => `${i + 1}│ ${l}`).join('\n')
 
-const SYSTEM = `You are a careful CV editor for Recto, a text-first CV builder.
-${GRAMMAR}
-
-Rule: ${NO_FABRICATION}
+const TAIL = `Rule: ${NO_FABRICATION}
 
 Suggestions: "line" is the line number, "expect" is that line's exact current text (without the number prefix), "replacement" is the full new line of the same kind (a bullet stays a bullet, an entry keeps its fields). Reply with JSON only, matching the schema.`
 
-const cvBlock = source => `CV (line numbers are not part of the text):\n${numberSource(source)}`
-const jobBlock = job => `Job posting:\nTitle: ${job?.title ?? ''}\nCompany: ${job?.company ?? ''}\n${job?.text ?? ''}`
-const build = (json, ...parts) => ({ system: SYSTEM, messages: [{ role: 'user', content: parts.join('\n\n') }], json })
+// Built-in text, used when the playbook (agent/*.md, see playbook.js) is not loaded.
+export const FALLBACK = `You are a careful CV editor for Recto, a text-first CV builder.
+${GRAMMAR}
 
-export const suggestPrompt = ({ source }) =>
-  build(SUGGESTIONS, 'Suggest improvements to this CV: impact, clarity, concision, grammar and structure.', cvBlock(source))
+${TAIL}`
 
-export function rewritePrompt ({ source, lines, instruction }) {
-  const how = INSTRUCTIONS[instruction] ?? `Instruction: ${instruction}`
-  return build(SUGGESTIONS, `Rewrite lines ${lines.join(', ')} only. ${how}`, cvBlock(source))
+const WRITING_MODES = ['review', 'rewrite', 'tailor', 'coverLetter']
+/** core + writing (writing modes) + grammar + the mode file, then `tail` (which always carries the no-fabrication rule). */
+export function systemFor (mode, playbook, tail = TAIL, fallback = FALLBACK) {
+  if (!playbook) return fallback
+  return [playbook.core, WRITING_MODES.includes(mode) && playbook.writing, playbook.grammar, playbook.modes?.[mode], tail]
+    .filter(Boolean).join('\n\n')
 }
 
-export const tailorPrompt = ({ source, job }) =>
-  build(TAILOR, 'Tailor this CV to the job: emphasise matching facts and use the posting\'s wording for skills the CV already shows. List keywords you worked in as keywordsAdded and summarise the changes.', cvBlock(source), jobBlock(job))
+const cvBlock = source => `CV (line numbers are not part of the text):\n${numberSource(source)}`
+const jobBlock = job => `Job posting:\nTitle: ${job?.title ?? ''}\nCompany: ${job?.company ?? ''}\n${job?.text ?? ''}`
+const build = (mode, playbook, json, ...parts) => ({ system: systemFor(mode, playbook), messages: [{ role: 'user', content: parts.join('\n\n') }], json })
+
+export const suggestPrompt = ({ source }, playbook) =>
+  build('review', playbook, SUGGESTIONS, 'Suggest improvements to this CV: impact, clarity, concision, grammar and structure.', cvBlock(source))
+
+export function rewritePrompt ({ source, lines, instruction }, playbook) {
+  const how = INSTRUCTIONS[instruction] ?? `Instruction: ${instruction}`
+  return build('rewrite', playbook, SUGGESTIONS, `Rewrite lines ${lines.join(', ')} only. ${how}`, cvBlock(source))
+}
+
+export const tailorPrompt = ({ source, job }, playbook) =>
+  build('tailor', playbook, TAILOR, 'Tailor this CV to the job: emphasise matching facts and use the posting\'s wording for skills the CV already shows. List keywords you worked in as keywordsAdded and summarise the changes.', cvBlock(source), jobBlock(job))
 
 const EVALUATE = `Evaluate how well this CV fits the job, in two passes.
 Pass 1 (read only the job posting, not the CV): list its requirements; for each, "jdSignal" is the verbatim posting phrase and "importance" is critical (stated: must/required/minimum/"N+ years"), high (listed under requirements/qualifications) or meaningful (responsibilities or nice-to-have). Importance never depends on the CV.
@@ -105,14 +116,15 @@ const rowsBlock = rows => rows?.length
   ? `Requirements already extracted in pass 1 (keep their jdSignal; you may refine match and evidence):\n${rows.map(r => `- [${r.importance}] ${r.jdSignal}`).join('\n')}`
   : ''
 
-export const evaluatePrompt = ({ source, job, rows }) =>
-  build(EVALUATION, EVALUATE, ...[rowsBlock(rows)].filter(Boolean), cvBlock(source), jobBlock(job))
+export const evaluatePrompt = ({ source, job, rows }, playbook) =>
+  build('evaluate', playbook, EVALUATION, EVALUATE, ...[rowsBlock(rows)].filter(Boolean), cvBlock(source), jobBlock(job))
 
-export const coverLetterPrompt = ({ source, job }) =>
-  build(COVER_LETTER, 'Write a concise cover letter for this job (3–5 plain-text paragraphs, no markup, no address block).', cvBlock(source), jobBlock(job))
+export const coverLetterPrompt = ({ source, job }, playbook) =>
+  build('coverLetter', playbook, COVER_LETTER, 'Write a concise cover letter for this job (3–5 plain-text paragraphs, no markup, no address block).', cvBlock(source), jobBlock(job))
 
-export const extractJobPrompt = ({ text }) => ({
-  system: 'You extract structured fields from job postings. Use only what the posting says; leave unknown fields empty. Reply with JSON only, matching the schema.',
+const EXTRACT = 'You extract structured fields from job postings. Use only what the posting says; leave unknown fields empty. Reply with JSON only, matching the schema.'
+export const extractJobPrompt = ({ text }, playbook) => ({
+  system: systemFor('extractJob', playbook, `Rule: ${NO_FABRICATION}\n\n${EXTRACT}`, EXTRACT),
   messages: [{ role: 'user', content: `Job posting:\n${text}` }],
   json: JOB,
 })
