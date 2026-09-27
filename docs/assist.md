@@ -6,13 +6,13 @@ Everything in this document is optional. With no provider connected, Recto still
 
 - **A human decides.** AI only proposes. Every suggestion is a diff card you accept, reject or edit — nothing is written to your CV without a click.
 - **No fabrication.** AI is instructed to only rephrase, reorder, cut or emphasise facts already in your CV, never to invent an employer, title, date, degree, metric, tool or achievement. Every card is also checked in your browser: if its replacement text contains a number, date, URL or capitalized word/tool that isn't anywhere in your CV (or, when tailoring, in the job's own keywords), it's marked **"Adds new facts — verify"** and left out of "Accept all".
-- **Local-first.** AI is off by default. Nothing leaves your machine until you connect a provider in the **AI** dialog (top bar) and confirm the first-use consent prompt, which tells you exactly what will be sent (your CV text, and the job description if one is open) and to which provider.
+- **Local-first.** AI is off by default. Nothing leaves your machine until you connect a provider in the **Connect AI providers** dialog (top bar) and confirm the first-use consent prompt, which tells you exactly what will be sent (your CV text, and the job description if one is open) and to which provider.
 - **Your data goes to one place.** Only the provider you chose ever sees your CV — never Recto's own servers, because there are none.
 - **Recto never acts for you.** It never submits an application or sends a message on your behalf.
 
 ## Connecting a provider
 
-Open **AI** in the top bar. Six provider cards:
+Open **Connect AI providers** in the top bar. Eight provider cards:
 
 | Provider | What you need |
 |---|---|

@@ -92,7 +92,7 @@ src/ui/
                              "What the ATS sees" mock form, then the existing preflight list and the ATS X-ray text
   gallery.js                template gallery with live thumbnails
   import-review.js          converted-Markdown editor next to a live preview in the current layout, with the converter's low-confidence notes; "Import" creates a new document
-  ai-dialog.js               AI connections dialog (top bar): provider cards, model list, test connection, remember-on-this-device, and the per-provider first-use consent prompt
+  ai-dialog.js               Connect AI providers dialog (top bar): provider cards, model list, test connection, remember-on-this-device, and the per-provider first-use consent prompt
   jobs-dialog.js              (superseded by jobs-board.js; kept only as dead code — nothing imports it any more)
   jobs-board.js               openJobsBoard(store, ctx): full-screen board (spec §5) — 6 columns + collapsed Skipped,
                               drag-and-drop plus ←/→ keyboard moves (both record a statusHistory entry), stale-applied

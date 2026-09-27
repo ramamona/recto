@@ -25,7 +25,7 @@ Upload the repository folder. These parts are not needed on a server, and the Do
 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'
 ```
 
-`connect-src` allows `https:` and `localhost`/`127.0.0.1` on top of the app's own origin, because AI is opt-in and BYO-provider (see [assist.md](assist.md)): once a visitor connects a provider in the **AI** dialog, the page talks to that provider's API (or a local Ollama/LM Studio server) directly from the browser. No request happens until a visitor connects one, and only the provider they chose ever receives anything. Don't inject analytics, chat widgets or other third-party scripts — the CSP's `script-src 'self'` still blocks any script that isn't your own, so they wouldn't run, but they also have no business here.
+`connect-src` allows `https:` and `localhost`/`127.0.0.1` on top of the app's own origin, because AI is opt-in and BYO-provider (see [assist.md](assist.md)): once a visitor connects a provider in the **Connect AI providers** dialog, the page talks to that provider's API (or a local Ollama/LM Studio server) directly from the browser. No request happens until a visitor connects one, and only the provider they chose ever receives anything. Don't inject analytics, chat widgets or other third-party scripts — the CSP's `script-src 'self'` still blocks any script that isn't your own, so they wouldn't run, but they also have no business here.
 
 ## Local: `node serve.js`
 
