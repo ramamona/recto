@@ -1,8 +1,13 @@
 // Jobs board (review-jobs spec §5): full-screen kanban over the tracker, detail drawer, search, export/import.
+// Career suite (spec §7): the drawer is a per-job workspace with tabs (job-workspace.js); cards carry an overdue
+// follow-up badge and a selection checkbox for Compare and Apply to selected; the header adds Apply to all saved and Insights.
 import { h, uid } from './dom.js'
 import { ask } from './topbar.js'
 import { STATUSES, staleApplied } from '../jobs/tracker.js'
+import { followUpsDue } from '../jobs/insights.js'
 import { openFile, download } from '../io/files.js'
+import { createWorkspace } from './job-workspace.js'
+import { openCompare } from './compare-view.js'
 
 export const COLUMNS = STATUSES
 const COLLAPSED = 'skipped'
@@ -49,11 +54,19 @@ export function scoresOf(job) {
   }
 }
 
+/** Ids of Saved jobs (the apply queue takes only those), limited to `selected` when given, in list order. */
+export const savedIds = (jobs, selected) => jobs.filter(j => j.status === 'saved' && (!selected || selected.has(j.id))).map(j => j.id)
+
+/** Compare takes 2 to 5 jobs. */
+export const canCompare = n => n >= 2 && n <= 5
+
 export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => new Date() } = {}) {
   const { t } = ctx
   let query = ''
   let openId = null
   let showSkipped = false
+  let ws = null // workspace of the open job
+  const selected = new Set()
   const titleId = uid('board')
   const label = job => job.title || t('jobs.untitled')
   const liveDocs = job => (job.docIds ?? []).filter(id => store.state.docs.some(d => d.id === id))
@@ -86,6 +99,7 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
     const { match, stars: s } = scoresOf(job)
     const days = daysSince(job, now())
     const stale = staleApplied(job, now())
+    const due = followUpsDue(job, now()).length
     return h('article', {
       class: `board-card${job.id === openId ? ' is-open' : ''}`, tabIndex: 0, draggable: 'true',
       dataset: { job: job.id }, 'aria-label': t('board.card', { title: label(job), company: job.company || t('board.noCompany') }),
@@ -98,13 +112,25 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
         if (dir) { e.preventDefault(); move(job.id, stepStatus(job.status, dir), { focus: true }) }
       }
     },
+    h('input', {
+      class: 'board-card__select', type: 'checkbox', checked: selected.has(job.id), dataset: { action: 'board-select' },
+      'aria-label': t('board.select', { title: label(job) }),
+      onClick: e => e.stopPropagation(),
+      onChange: e => {
+        if (e.target.checked) selected.add(job.id)
+        else selected.delete(job.id)
+        render()
+        columns.querySelector(`[data-job="${CSS.escape(job.id)}"] .board-card__select`)?.focus()
+      }
+    }),
     job.company && h('p', { class: 'board-card__company' }, job.company),
     h('h3', { class: 'board-card__title' }, label(job)),
     job.location && h('p', { class: 'board-card__meta ui-muted' }, job.location),
     h('p', { class: 'board-card__scores' },
       match != null && h('span', { class: 'board-chip' }, t('board.match', { score: Math.round(match) })),
       s && h('span', { class: 'board-chip board-chip--stars' }, stars(s)),
-      days != null && h('span', { class: 'ui-muted' }, t('board.days', { days }))),
+      days != null && h('span', { class: 'ui-muted' }, t('board.days', { days })),
+      due > 0 && h('span', { class: 'board-chip board-chip--due' }, t('board.due', { count: due }))),
     liveDocs(job).length > 0 && h('div', { class: 'board-card__docs' }, docButtons(job)),
     stale && h('p', { class: 'board-card__stale' }, h('button', {
       class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'board-stale' },
@@ -131,12 +157,23 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
     const all = tracker.list()
     const groups = groupJobs(all, query)
     counts.textContent = all.length ? t('board.total', { count: all.length }) : t('jobs.empty')
+    for (const id of selected) if (!all.some(j => j.id === id)) selected.delete(id)
+    const chosen = savedIds(all, selected).length
+    compareBtn.textContent = t('board.compare', { count: selected.size })
+    compareBtn.disabled = !canCompare(selected.size)
+    applySelBtn.textContent = t('board.applySelected', { count: chosen })
+    applySelBtn.disabled = !chosen
+    applyAllBtn.disabled = !savedIds(all).length
     columns.replaceChildren(...COLUMNS.map(s => column(s, groups[s])))
     if (openId) renderDrawer()
   }
 
   // ---------- detail drawer ----------
   function showDrawer(id) {
+    if (id !== openId) {
+      ws?.abort()
+      ws = createWorkspace(store, ctx, { tracker, jobId: id, onChange: render, move, now })
+    }
     openId = id
     render()
     drawer.querySelector('.board-drawer__title')?.focus()
@@ -144,6 +181,8 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
   function hideDrawer() {
     const id = openId
     openId = null
+    ws?.abort()
+    ws = null
     drawer.hidden = true
     render()
     if (id) columns.querySelector(`[data-job="${CSS.escape(id)}"]`)?.focus()
@@ -175,7 +214,7 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
 
   function renderDrawer() {
     const job = tracker.get(openId)
-    if (!job) { openId = null; drawer.hidden = true; return }
+    if (!job) { openId = null; drawer.hidden = true; ws?.abort(); ws = null; return }
     const url = safeUrl(job.url)
     const notes = h('textarea', {
       class: 'ui-input board-notes', rows: 6, value: job.notes, dataset: { field: 'notes' },
@@ -189,7 +228,7 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
         h('h2', { class: 'board-drawer__title', tabIndex: -1 }, label(job)),
         h('button', { class: 'ui-btn ui-btn--sm ui-btn--ghost', type: 'button', 'aria-label': t('board.closeDetails'), onClick: hideDrawer }, '×')),
       h('p', { class: 'ui-muted' }, [job.company, job.location].filter(Boolean).join(' · ')),
-      h('div', { class: 'board-drawer__row' },
+      ...ws.render(job, [h('div', { class: 'board-drawer__row' },
         h('select', {
           class: 'ui-select', 'aria-label': t('jobs.status.for', { title: label(job) }), dataset: { field: 'status' },
           onChange: e => move(job.id, e.target.value)
@@ -205,7 +244,7 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
         (job.statusHistory ?? []).map(e => h('li', {}, h('span', {}, t(`jobs.status.${e.status}`)), ' ',
           h('time', { class: 'ui-muted', datetime: e.at }, new Date(e.at).toLocaleDateString()))))),
       h('section', {}, h('h3', {}, t('board.docs')),
-        liveDocs(job).length ? h('div', { class: 'board-card__docs' }, docButtons(job)) : h('p', { class: 'ui-muted' }, t('board.noDocs'))),
+        liveDocs(job).length ? h('div', { class: 'board-card__docs' }, docButtons(job)) : h('p', { class: 'ui-muted' }, t('board.noDocs')))]),
       h('footer', { class: 'board-drawer__foot' },
         h('button', { class: 'ui-btn ui-btn--danger ui-btn--sm', type: 'button', dataset: { action: 'board-delete' }, onClick: () => remove(job) }, t('jobs.delete'))))
   }
@@ -229,10 +268,18 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
     class: 'ui-input board-search', type: 'search', placeholder: t('board.search'), 'aria-label': t('board.search'),
     onInput: e => { query = e.target.value; render() }
   })
+  const headBtn = (action, onClick, label = '') => h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action }, onClick }, label)
+  const compareBtn = headBtn('board-compare', () => openCompare(store, ctx, { jobIds: [...selected], tracker }))
+  const applySelBtn = headBtn('board-apply-selected', () => ctx.openApplyQueue?.({ jobIds: savedIds(tracker.list(), selected) }))
+  applySelBtn.title = t('board.applySelected.hint')
+  const applyAllBtn = headBtn('board-apply-saved', () => ctx.openApplyQueue?.({ jobIds: savedIds(tracker.list()) }), t('board.applySaved'))
   const dialog = h('dialog', { class: 'board', 'aria-labelledby': titleId },
     h('header', { class: 'board-head' },
       h('h1', { class: 'board-head__title', id: titleId }, t('jobs.title')), counts, search,
       h('span', { class: 'ui-spacer' }),
+      compareBtn,
+      ctx.openApplyQueue && [applySelBtn, applyAllBtn],
+      typeof ctx.openInsights === 'function' && headBtn('board-insights', () => ctx.openInsights?.(), t('board.insights')),
       h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-import' }, onClick: importJobs }, t('jobs.import')),
       h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-export' }, onClick: exportJobs }, t('jobs.export')),
       h('button', { class: 'ui-btn ui-btn--sm ui-btn--primary', type: 'button', dataset: { action: 'board-close' }, onClick: () => close() }, t('board.close'))),
@@ -243,6 +290,7 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
   const escDrawer = e => { if (openId && (e.type === 'cancel' || e.key === 'Escape')) { e.preventDefault(); hideDrawer() } }
   dialog.addEventListener('keydown', escDrawer)
   dialog.addEventListener('cancel', escDrawer)
+  dialog.addEventListener('close', () => ws?.abort(), { once: true })
   render()
   const close = ctx.openDialog(dialog)
   search.focus()

@@ -10,8 +10,9 @@ import { findChrome, launch, chromeArgs } from '../cli/chrome.js'
 import { createServer, listen } from '../serve.js'
 import { parse } from '../src/model/markdown.js'
 import { DECLINE } from '../src/jobs/pack.js'
+import { EEO_FIELDS } from '../src/profile.js'
 import {
-  applicant, resolveField, pickOption, submitGuards, countToday, detectAts, applyUrlOf, planFields, autoapply
+  applicant, resolveField, pickOption, submitGuards, countToday, detectAts, applyUrlOf, planFields, autoapply, bundleError
 } from '../cli/autoapply.js'
 
 const CLI = fileURLToPath(new URL('../cli/recto.js', import.meta.url))
@@ -91,7 +92,8 @@ test('applicant prefills name, email, phone and links from the CV header, profil
   assert.equal(a.github, 'https://github.com/alexmorgan')
   assert.equal(a.website, 'https://alexmorgan.dev')
   assert.equal(a.linkedin, 'https://www.linkedin.com/in/alexmorgan')
-  assert.deepEqual(applicant(null, null).eeo, { gender: 'decline', race: 'decline', veteran: 'decline', disability: 'decline' })
+  assert.deepEqual(applicant(null, null).eeo, Object.fromEntries(EEO_FIELDS.map(k => [k, 'decline'])))
+  assert.ok(EEO_FIELDS.includes('gender') && EEO_FIELDS.includes('disability'))
 })
 
 test('resolveField maps standard labels by rule, EEO to decline, and prefers pack answers', () => {
@@ -314,4 +316,151 @@ test('--submit enforces the daily cap counted from the log', { skip }, async () 
   const results = await run(paths, { submit: true, max: 5 }, deps())
   assert.deepEqual(results.map(r => [r.result, r.reason]), [['submitted', ''], ['blocked', 'daily-cap']])
   assert.equal(received.length, 1)
+})
+
+// ---------- one-click apply (career-suite spec §4): bundle, progress events, answer bank, generic filler ----------
+
+// Stand-in for src/jobs/answers.js findAnswer: exact question match, choice answers must be one of the options
+const fakeFind = (bank, question, { options = [] } = {}) => {
+  const entry = (bank ?? []).find(e => e.question === question)
+  if (!entry || (options.length && !options.includes(entry.answer))) return null
+  return { answer: entry.answer, entry }
+}
+const BANK = [{ question: 'Do you hold a current police check?', answer: 'Yes' }, { question: 'What is your notice period?', answer: '12 weeks' },
+  { question: 'Which visa subclass do you hold?', answer: 'Subclass 482' }]
+
+test('resolveField falls back to the answer bank after the pack and the rules', () => {
+  const a = applicant({ ...PROFILE, answers: BANK }, null)
+  const r = (label, extra = {}) => resolveField({ label, kind: 'text', options: [], ...extra }, { applicant: a, findAnswer: fakeFind, ...extra.ctx })
+  assert.deepEqual(r('Do you hold a current police check?'), { value: 'Yes', source: 'bank' })
+  assert.deepEqual(r('Do you hold a current police check?', { kind: 'choice', options: ['Yes', 'No'] }), { value: 'Yes', source: 'bank' })
+  assert.deepEqual(r('What is your notice period?'), { value: '4 weeks', source: 'profile' }, 'rules win over the bank')
+  assert.equal(r('What is your favourite colour?'), null)
+  const pack = { answers: [{ question: 'Which visa subclass do you hold?', answer: 'None', source: 'you' }], fields: [] }
+  assert.equal(r('Which visa subclass do you hold?', { ctx: { pack } }).value, 'None', 'the pack wins over the bank')
+  assert.equal(resolveField({ label: 'Which visa subclass do you hold?', options: [] }, { applicant: applicant({}, null), findAnswer: fakeFind }), null)
+})
+
+test('bundleError accepts a queue bundle and names what is wrong otherwise', () => {
+  const ok = { format: 'recto-apply', version: 1, jobs: [{ id: 'a' }], cv: { name: 'Me', content: '# Me', layout: {} }, profile: {}, minScore: 4, max: 10, mode: 'review' }
+  assert.equal(bundleError(ok), null)
+  assert.equal(bundleError({ jobs: [{}], cv: { content: '' } }), null, 'optional fields may be missing')
+  for (const bad of [null, [], 'x', { ...ok, jobs: [] }, { ...ok, jobs: 'x' }, { ...ok, jobs: [1] }, { ...ok, jobs: Array(201).fill({}) },
+    { ...ok, cv: null }, { ...ok, cv: { content: 1 } }, { ...ok, profile: [] }, { ...ok, minScore: 'high' }, { ...ok, minScore: 9 },
+    { ...ok, max: -1 }, { ...ok, max: 1.5 }, { ...ok, mode: 'yolo' }]) {
+    assert.match(bundleError(bad) ?? '', /\w/, JSON.stringify(bad)?.slice(0, 60))
+  }
+})
+
+test('detectAts names SmartRecruiters and Workable hosts', () => {
+  assert.equal(detectAts('https://jobs.smartrecruiters.com/Canva/123'), 'smartrecruiters')
+  assert.equal(detectAts('https://apply.workable.com/acme/j/ABC/'), 'workable')
+})
+
+// A form page that records what autoapply does to it; `fields` as inPage('scan') describes them
+function fakePage(fields, calls) {
+  const state = fields.map(f => ({ required: false, options: [], value: '', name: '', ...f }))
+  return {
+    evaluate: async expr => {
+      const [, action, arg] = /\)\("(\w+)", (.*)\)$/s.exec(expr)
+      calls.push(action)
+      if (action === 'fill') for (const { key, value } of JSON.parse(arg)) state.find(f => f.key === key).value = value
+      return action === 'scan' ? { fields: state.map(f => ({ ...f })), walls: [], ats: {}, submit: true } : true
+    },
+    setFileInputFiles: async (sel, files) => {
+      calls.push('attach')
+      state.find(f => sel.includes(`"${f.key}"`)).value = files[0].split(/[\\/]/).pop()
+    },
+    click: async () => calls.push('click'),
+    screenshot: async () => Buffer.from('png'),
+    close: async () => {}
+  }
+}
+const FORM = [
+  { key: 'f0', kind: 'text', label: 'First name', required: true },
+  { key: 'f1', kind: 'text', label: 'Do you hold a current police check?', required: true },
+  { key: 'f2', kind: 'file', label: 'Resume/CV', required: true }
+]
+
+async function bundleSetup(name, jobs, extra = {}) {
+  const paths = await setup(name, [])
+  const cv = JSON.parse(await readFile(SAMPLE, 'utf8'))
+  const bundle = join(dir, name, 'recto-apply.json')
+  await writeFile(bundle, JSON.stringify({ format: 'recto-apply', version: 1, jobs, cv: { name: cv.name, content: cv.content, layout: cv.layout }, profile: { ...PROFILE, answers: BANK }, ...extra }))
+  return { ...paths, bundle }
+}
+
+function fakeDeps(pages, answers = []) {
+  const calls = [], events = [], asked = []
+  return {
+    calls, events, asked,
+    readInput: () => assert.fail('a bundle carries its CV'),
+    exportPdf: async (file, out) => writeFile(out, '%PDF-1.4 test\n'),
+    launch: async () => ({ newPage: async () => pages.shift(), close: async () => {} }),
+    ask: async q => { asked.push(q); return answers.shift() ?? '' },
+    emit: e => events.push(e),
+    findAnswer: fakeFind,
+    now: () => NOW,
+    print: () => {}
+  }
+}
+
+test('the generic filler fills by label from rules and the bank, attaches the CV and never submits, even with --submit', async () => {
+  const jobs = [job('sr', { url: 'https://jobs.smartrecruiters.com/Acme/123' }), job('other', { url: 'https://careers.example/apply' })]
+  const paths = await bundleSetup('generic', jobs)
+  const calls = []
+  const d = fakeDeps([fakePage(FORM, calls), fakePage(FORM, calls)])
+  const results = await autoapply({ bundle: paths.bundle, log: paths.log, outDir: paths.outDir, submit: true }, d)
+  assert.deepEqual(results.map(r => [r.jobId, r.ats, r.result, r.reason]), [['sr', 'smartrecruiters', 'blocked', 'unsupported-ats'], ['other', 'generic', 'blocked', 'unsupported-ats']])
+  assert.ok(!calls.includes('click'), 'never clicks Submit')
+  assert.equal(calls.filter(c => c === 'attach').length, 2)
+  const value = label => results[0].fields.find(f => f.label === label).value
+  assert.equal(value('First name'), 'Alex')
+  assert.equal(value('Do you hold a current police check?'), 'Yes')
+  assert.equal(value('Resume/CV'), 'Alex-Morgan-CV.pdf')
+  assert.equal(d.asked.length, 4, 'hands every job back to the user')
+  assert.deepEqual((await readJobs(paths.bundle)).map(j => j.status), ['saved', 'saved'])
+})
+
+test('--progress-json emits job states, one wait per job answered by a y/n line, then a summary; the bundle is the tracker file', async () => {
+  const jobs = [job('gh', { url: 'https://boards.greenhouse.io/acme/jobs/1' }), job('wk', { url: 'https://apply.workable.com/acme/j/1/' }), job('nourl', { url: '' })]
+  const paths = await bundleSetup('progress', jobs, { minScore: 4, max: 10 })
+  const calls = []
+  const d = fakeDeps([fakePage(FORM, calls), fakePage(FORM, calls)], ['y', 'n'])
+  await autoapply({ bundle: paths.bundle, log: paths.log, outDir: paths.outDir, progressJson: true }, d)
+  assert.deepEqual(d.events, [
+    { type: 'job', id: 'gh', state: 'queued' }, { type: 'job', id: 'wk', state: 'queued' }, { type: 'job', id: 'nourl', state: 'queued' },
+    { type: 'job', id: 'gh', state: 'filling' }, { type: 'wait', id: 'gh' }, { type: 'job', id: 'gh', state: 'submitted', reason: '' },
+    { type: 'job', id: 'wk', state: 'filling' }, { type: 'wait', id: 'wk' }, { type: 'job', id: 'wk', state: 'filled', reason: '' },
+    { type: 'job', id: 'nourl', state: 'skipped', reason: 'no-apply-url' },
+    { type: 'done', summary: { submitted: 1, filled: 1, skipped: 1 } }
+  ])
+  assert.equal(d.asked.length, 2, 'one y/n line per waiting job')
+  const saved = await readJobs(paths.bundle)
+  assert.deepEqual(saved.map(j => j.status), ['applied', 'saved', 'saved'])
+  assert.deepEqual(saved[0].statusHistory.at(-1), { status: 'applied', at: NOW.toISOString() })
+})
+
+test('bundle minScore and max apply unless the flags override them', async () => {
+  const jobs = [job('gh', { url: 'https://boards.greenhouse.io/acme/jobs/1', evaluations: [{ score: 4.2 }] })]
+  const paths = await bundleSetup('limits', jobs, { minScore: 4.5, max: 10 })
+  const run1 = await autoapply({ bundle: paths.bundle, log: paths.log, outDir: paths.outDir, submit: true }, fakeDeps([fakePage(FORM.slice(0, 2), [])]))
+  assert.deepEqual(run1.map(r => [r.result, r.reason]), [['blocked', 'score']])
+  const run2 = await autoapply({ bundle: paths.bundle, log: paths.log, outDir: paths.outDir, submit: true, minScore: 4, max: 0 }, fakeDeps([fakePage(FORM.slice(0, 2), [])]))
+  assert.deepEqual(run2.map(r => [r.result, r.reason]), [['blocked', 'daily-cap']])
+})
+
+test('recto autoapply --bundle --progress-json keeps stdout to JSON lines; a malformed bundle exits 2', async () => {
+  const paths = await bundleSetup('cli-bundle', [job('greenhouse', { url: 'https://boards.greenhouse.io/acme/jobs/1' })])
+  const r = await recto(['autoapply', '--bundle', paths.bundle, '--progress-json', '--dry-run', '--log', paths.log])
+  assert.equal(r.code, 0, r.stderr)
+  const events = r.stdout.trim().split('\n').map(l => JSON.parse(l))
+  assert.deepEqual(events.at(-1), { type: 'done', summary: {} })
+  assert.ok(events.every(e => ['job', 'wait', 'done'].includes(e.type)))
+  assert.match(r.stderr, /First name: Alex \(profile\)/)
+  const bad = join(dir, 'cli-bundle', 'bad.json')
+  await writeFile(bad, JSON.stringify({ jobs: 'x', cv: {} }))
+  const r2 = await recto(['autoapply', '--bundle', bad])
+  assert.equal(r2.code, 2)
+  assert.match(r2.stderr, /bundle/)
 })

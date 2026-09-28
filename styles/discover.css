@@ -12,6 +12,7 @@
 .dc-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .dc-row .ui-input { flex: 1; min-width: 0; }
 .dc-num { width: 5em; }
+.dc-found { max-height: 10em; }
 
 .dc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .dc-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--ui-border); }
@@ -73,3 +74,23 @@
   .discover-body { flex-direction: column; overflow-y: auto; }
   .dc-settings { flex-basis: auto; border-right: 0; border-bottom: 1px solid var(--ui-border); }
 }
+
+/* Discover selection (career-suite spec §7) */
+.dc-card__top { display: flex; gap: 6px; align-items: center; }
+.dc-card__check { margin: 0; }
+
+/* Pipeline inbox (career-suite spec §6): full-screen like the board */
+.pl-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; }
+.pl-input, .pl-raw { width: 100%; box-sizing: border-box; resize: vertical; font: var(--ui-size-sm)/1.4 var(--ui-mono); }
+.pl-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pl-rows { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.pl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 10px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm); font-size: var(--ui-size-sm); }
+.pl-row__name { flex: 1; min-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-row__state { color: var(--ui-muted); }
+.pl-row.is-done { border-color: var(--ui-accent); }
+.pl-row.is-failed { border-color: var(--ui-warn); }
+.pl-row.is-duplicate .pl-row__name { color: var(--ui-muted); }
+.pl-row__error { flex-basis: 100%; margin: 0; color: var(--ui-warn); }
+.pl-row__fix { flex-basis: 100%; display: flex; gap: 8px; align-items: flex-start; }
+.pl-row__fix .pl-raw { flex: 1; }
+.pl-empty { padding: 6px 0; }

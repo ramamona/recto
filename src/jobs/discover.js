@@ -1,6 +1,7 @@
 // Discovery engine (discover-apply spec 2): scan company boards + remote feeds, filter by the profile,
-// drop what the tracker already has, evaluate locally and rank. Pure except the injected fetch.
-import { SOURCES, TIMEOUT_MS, getJson, parsePostings, normalizeCompanies } from './sources.js'
+// drop what the tracker already has, evaluate locally and rank. Country-aware per career-suite spec §2. Pure except the injected fetch.
+import { SOURCES, TIMEOUT_MS, getJson, parsePostings, normalizeCompanies, fetchPostings, fetchDetails } from './sources.js'
+import { DEFAULT_COUNTRY, countryOf, regionOf, mentionsCountry, inArea, namesPlace } from './region.js'
 import { canonicalTokens } from './parse.js'
 import { evaluateJob } from './evaluate.js'
 import { normalizeProfile, REMOTE } from '../profile.js'
@@ -22,8 +23,11 @@ const hasWord = (hay, w) => new RegExp(`(?<![\\p{L}\\p{N}])${escape(w)}(?![\\p{L
 
 // ---- settings
 
-/** `{ roles, locations, remote, maxAgeDays, minScore, feeds }`; roles/locations/remote default from the profile. */
-export function normalizeDiscoverSettings(s, profile) {
+/**
+ * `{ roles, locations, remote, maxAgeDays, minScore, country, feeds }`; roles/locations/remote default from the profile.
+ * `country` is a preset code or '' (Any); unset → the profile's country → `detected` (the browser's, UI only) → DEFAULT_COUNTRY.
+ */
+export function normalizeDiscoverSettings(s, profile, detected = '') {
   const o = obj(s), p = normalizeProfile(profile), f = obj(o.feeds)
   const age = Math.floor(num(o.maxAgeDays)), min = num(o.minScore)
   return {
@@ -32,9 +36,11 @@ export function normalizeDiscoverSettings(s, profile) {
     remote: REMOTE.includes(o.remote) ? o.remote : p.remote,
     maxAgeDays: age > 0 ? age : MAX_AGE_DAYS,
     minScore: Number.isFinite(min) ? Math.min(5, Math.max(0, min)) : 0,
+    country: o.country === '' ? '' : countryOf(o.country) || countryOf(p.country) || countryOf(detected) || DEFAULT_COUNTRY,
     feeds: {
       remotive: { enabled: obj(f.remotive).enabled === true, query: str(obj(f.remotive).query).trim() },
-      arbeitnow: { enabled: obj(f.arbeitnow).enabled === true }
+      arbeitnow: { enabled: obj(f.arbeitnow).enabled === true },
+      jobicy: { enabled: obj(f.jobicy).enabled === true }
     }
   }
 }
@@ -44,8 +50,14 @@ function defaultStorage() {
   return null
 }
 
-export function loadDiscoverSettings(storage = defaultStorage(), profile) {
-  try { return normalizeDiscoverSettings(JSON.parse(storage?.getItem(DISCOVER_KEY) ?? 'null'), profile) } catch { return normalizeDiscoverSettings(null, profile) }
+// First scan ever: the country-filtered Jobicy feed is on too (later the user's saved choice wins)
+const FIRST_RUN = { feeds: { jobicy: { enabled: true } } }
+
+export function loadDiscoverSettings(storage = defaultStorage(), profile, detected) {
+  try {
+    const raw = storage?.getItem(DISCOVER_KEY)
+    return normalizeDiscoverSettings(raw == null ? FIRST_RUN : JSON.parse(raw), profile, detected)
+  } catch { return normalizeDiscoverSettings(null, profile, detected) }
 }
 
 export function saveDiscoverSettings(s, storage = defaultStorage(), profile) {
@@ -63,13 +75,16 @@ function roleOk(title, roles) {
   return roles.some(r => { const want = canonicalTokens(r); return want.length && want.every(w => words.has(w)) })
 }
 
-// ponytail: a preferred location matches on its first comma part ("Berlin, Germany" → Berlin) as a word; a geocoder would be exact
-function placeOk(p, { locations, remote }) {
-  const here = !locations.length || locations.some(l => hasWord(p.location, l.split(',')[0].trim()))
-  if (remote === 'remote') return p.remote === true
+// ponytail: a preferred location matches on its first comma part ("Berlin, Germany" → Berlin) as a word; a geocoder would be exact.
+// With a country: the location names it (or one of its places), or it's remote within its area or naming no country/area at all.
+function placeOk(p, { locations, remote, country }) {
+  const listed = locations.some(l => hasWord(p.location, l.split(',')[0].trim()))
+  const here = listed || (country ? mentionsCountry(p.location, country) : !locations.length)
+  const away = p.remote === true && (!country || here || inArea(p.location, country) || !namesPlace(p.location))
+  if (remote === 'remote') return away
   if (remote === 'onsite') return p.remote !== true && here
   if (remote === 'hybrid') return here
-  return p.remote === true || here
+  return away || here
 }
 
 const fresh = (p, now, days) => !p.postedAt || +now - Date.parse(p.postedAt) <= days * 864e5
@@ -77,10 +92,11 @@ const fresh = (p, now, days) => !p.postedAt || +now - Date.parse(p.postedAt) <= 
 // ---- scan
 
 function tasksFor(companies, s) {
-  const tasks = normalizeCompanies(companies).map(c => ({ source: c.source, board: c.board, url: SOURCES[c.source].listUrl(c.board), company: c }))
-  const { remotive, arbeitnow } = s.feeds
+  const tasks = normalizeCompanies(companies).map(c => ({ source: c.source, board: c.board, company: c }))
+  const { remotive, arbeitnow, jobicy } = s.feeds
   if (remotive.enabled) tasks.push({ source: 'remotive', board: 'remotive', url: SOURCES.remotive.listUrl(remotive.query || s.roles[0] || '') })
   if (arbeitnow.enabled) tasks.push({ source: 'arbeitnow', board: 'arbeitnow', url: SOURCES.arbeitnow.listUrl(1) })
+  if (jobicy.enabled) tasks.push({ source: 'jobicy', board: 'jobicy', url: SOURCES.jobicy.listUrl(regionOf(s.country)?.feeds?.jobicy ?? '') })
   return tasks
 }
 
@@ -111,10 +127,12 @@ export async function discover({ companies, feeds, settings, profile, cv, tracke
   const errors = []
   let done = 0
   onProgress?.({ done, total: tasks.length })
+  const net = { fetch, signal, timeoutMs }
   const pages = await pool(tasks, CONCURRENCY, async t => {
     let postings = []
     try {
-      postings = parsePostings(t.source, await getJson(t.url, { fetch, signal, timeoutMs }), t.company)
+      postings = t.company ? await fetchPostings(t.company, { ...net, country: s.country })
+        : parsePostings(t.source, await getJson(t.url, net))
     } catch (err) {
       if (!signal?.aborted) errors.push({ source: t.source, board: t.board, message: str(err?.message) || String(err) })
     }
@@ -126,13 +144,17 @@ export async function discover({ companies, feeds, settings, profile, cv, tracke
   const jobs = trackedJobs(tracker).filter(j => j && typeof j === 'object')
   const hidden = new Set(jobs.filter(j => j.status !== 'saved').flatMap(j => [j.id, j.url].filter(Boolean)))
   const seen = new Set()
-  const candidates = pages.flat().filter(p => {
+  const found = pages.flat().filter(p => {
     const key = `${norm(p.company)}|${norm(p.title)}|${norm(p.location)}`
     if (seen.has(p.id) || seen.has(key)) return false
     seen.add(p.id).add(key)
     return ![p.id, p.url, p.applyUrl].some(k => k && hidden.has(k)) &&
       roleOk(p.title, s.roles) && placeOk(p, s) && fresh(p, now, s.maxAgeDays)
   })
+  // SmartRecruiters lists carry no description: one detail request per posting that passed the filters; a failure keeps it text-less
+  const candidates = await pool(found, CONCURRENCY, p => p.source === 'smartrecruiters' && !p.text
+    ? fetchDetails(p, net).catch(() => p) : p, signal)
+  signal?.throwIfAborted()
 
   const c = obj(cv)
   const layout = normalizeLayout(c.layout)

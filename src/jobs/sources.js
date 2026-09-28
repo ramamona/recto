@@ -1,9 +1,13 @@
 // Job sources (discover-apply spec 2): ATS board and remote-feed adapters → normalized Postings, plus the
-// company list store. Pure; network only through the injected fetch.
+// company list store (career-suite spec §2 adds SmartRecruiters, Workable, Jobicy and findBoards). Pure; network only
+// through the injected fetch.
 import { extractHtml } from '../io/extract.js'
+import { regionOf } from './region.js'
 
-export const ATS = ['greenhouse', 'lever', 'ashby']
+export const ATS = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable']
 export const TIMEOUT_MS = 10000
+const SR_PAGE = 100
+const SR_MAX = 300
 export const COMPANIES_KEY = 'recto:companies'
 const FORMAT = 'recto-companies'
 
@@ -43,6 +47,8 @@ function posting(source, board, jobId, f) {
 }
 
 const workplaceMeta = j => items(j.metadata).find(m => /workplace/i.test(str(m.name)))?.value
+// Non-empty location parts, repeats dropped ("New York, New York, United States" → "New York, United States")
+const place = (...parts) => [...new Set(parts.map(p => str(p).trim()).filter(Boolean))].join(', ')
 
 export const SOURCES = {
   greenhouse: {
@@ -87,7 +93,31 @@ export const SOURCES = {
       })
     })
   },
-  // Terms: show "via Remotive" and link back to the Remotive URL (the UI does, keyed on source)
+  smartrecruiters: {
+    listUrl: (id, { offset = 0, country = '' } = {}) =>
+      `https://api.smartrecruiters.com/v1/companies/${enc(id)}/postings?limit=${SR_PAGE}&offset=${offset}${country ? `&country=${enc(country)}` : ''}`,
+    detailUrl: (id, postingId) => `https://api.smartrecruiters.com/v1/companies/${enc(id)}/postings/${enc(postingId)}`,
+    // The list has no description: fetchDetails adds `text` from the job ad
+    parse: (data, { board, name }) => items(data?.content).flatMap(j => {
+      const l = isObj(j.location) ? j.location : {}
+      return posting('smartrecruiters', board, j.id, {
+        title: j.name, company: name || j.company?.name, remote: typeof l.remote === 'boolean' ? l.remote : null,
+        location: place(...str(l.fullLocation).split(',')) || place(l.city, l.region, l.country),
+        url: `https://jobs.smartrecruiters.com/${enc(board)}/${enc(j.id)}`, postedAt: j.releasedDate
+      })
+    })
+  },
+  workable: {
+    listUrl: sub => `https://apply.workable.com/api/v1/widget/accounts/${enc(sub)}?details=true`,
+    parse: (data, { board, name }) => items(data?.jobs).flatMap(j => {
+      const location = place(j.city, j.state, j.country)
+      return posting('workable', board, j.shortcode, {
+        title: j.title, company: name || data.name, location, remote: j.telecommuting === true ? true : remoteFrom('', location),
+        url: j.url, applyUrl: j.application_url, postedAt: j.published_on, text: htmlText(j.description)
+      })
+    })
+  },
+  // Terms: show "via Remotive" / "via Jobicy" and link back to the posting (the UI does, keyed on source)
   remotive: {
     listUrl: query => `https://remotive.com/api/remote-jobs?search=${enc(str(query))}&limit=100`,
     parse: data => items(data?.jobs).flatMap(j => posting('remotive', 'remotive', j.id, {
@@ -101,6 +131,14 @@ export const SOURCES = {
       title: j.title, company: j.company_name, location: j.location,
       remote: typeof j.remote === 'boolean' ? j.remote : remoteFrom('', j.location),
       url: j.url, postedAt: Number.isFinite(j.created_at) ? j.created_at * 1000 : null, text: htmlText(j.description)
+    }))
+  },
+  jobicy: {
+    listUrl: geo => `https://jobicy.com/api/v2/remote-jobs?count=50${str(geo) ? `&geo=${enc(geo)}` : ''}`,
+    parse: data => items(data?.jobs).flatMap(j => posting('jobicy', 'jobicy', j.id, {
+      title: j.jobTitle, company: j.companyName, location: place(...str(j.jobGeo).split(',')), remote: true,
+      url: j.url, postedAt: j.pubDate, text: htmlText(j.jobDescription),
+      salary: j.salaryMin || j.salaryMax ? `${j.salaryMin ?? ''}–${j.salaryMax ?? ''} ${str(j.salaryCurrency)} ${str(j.salaryPeriod)}`.trim() : ''
     }))
   }
 }
@@ -148,12 +186,65 @@ export async function getJson(url, { fetch = globalThis.fetch, signal, timeoutMs
   }
 }
 
-/** Adds `questions` to a Greenhouse posting (one detail request); other postings are returned as is. */
-export async function fetchDetails(p, { fetch, signal } = {}) {
+const jobIdOf = p => p.id.slice(`${p.source}:${p.board}:`.length)
+
+/** Adds `questions` to a Greenhouse posting and `text` to a SmartRecruiters one (one detail request); others as is. */
+export async function fetchDetails(p, { fetch, signal, timeoutMs } = {}) {
+  if (p?.source === 'smartrecruiters') {
+    const ad = await getJson(SOURCES.smartrecruiters.detailUrl(p.board, jobIdOf(p)), { fetch, signal, timeoutMs })
+    const sections = isObj(ad?.jobAd?.sections) ? Object.values(ad.jobAd.sections) : []
+    return { ...p, text: sections.map(s => htmlText(s?.text).trim()).filter(Boolean).join('\n\n') }
+  }
   if (p?.source !== 'greenhouse') return p
-  const jobId = p.id.slice(`greenhouse:${p.board}:`.length)
-  const detail = await getJson(SOURCES.greenhouse.detailUrl(p.board, jobId), { fetch, signal })
+  const detail = await getJson(SOURCES.greenhouse.detailUrl(p.board, jobIdOf(p)), { fetch, signal, timeoutMs })
   return { ...p, questions: parseQuestions(detail) }
+}
+
+/** A company board's Postings. SmartRecruiters pages until `totalFound` (max 300), filtered to `country` when it has a preset. */
+export async function fetchPostings(company, { country, ...opts } = {}) {
+  const { source, board } = company
+  if (source !== 'smartrecruiters') return parsePostings(source, await getJson(SOURCES[source].listUrl(board), opts), company)
+  const code = regionOf(country)?.feeds?.smartrecruiters ?? ''
+  const out = []
+  for (let offset = 0; offset < SR_MAX; offset += SR_PAGE) {
+    const data = await getJson(SOURCES.smartrecruiters.listUrl(board, { offset, country: code }), opts)
+    out.push(...parsePostings(source, data, company))
+    if (offset + SR_PAGE >= Math.min(Number(data?.totalFound) || 0, SR_MAX)) break
+  }
+  return out
+}
+
+// ---- board finder ("career-ops discover")
+
+/** Board slugs for a company name: 'Culture Amp' → cultureamp, culture-amp, culture_amp (and 'harrison.ai' as written). */
+export function slugVariants(name) {
+  const words = str(name).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+  const raw = str(name).trim().toLowerCase().replace(/\s+/g, '-')
+  return [...new Set([words.join(''), words.join('-'), words.join('_'), raw].filter(Boolean))]
+}
+
+// SmartRecruiters ids are case-insensitive, so CamelCase ('CultureAmp') replaces the plain compact slug
+function srVariants(name) {
+  const camel = str(name).split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join('')
+  const seen = new Set()
+  return [camel, ...slugVariants(name)].filter(v => v && !seen.has(v.toLowerCase()) && seen.add(v.toLowerCase()))
+}
+
+/** `[{ source, board, name, jobs }]` for every slug variant of `name` whose board has jobs, probed in parallel. Never throws. */
+export async function findBoards(name, { fetch = globalThis.fetch, signal, timeoutMs = TIMEOUT_MS } = {}) {
+  const label = str(name).trim()
+  if (!label || signal?.aborted) return []
+  const probes = ATS.flatMap(source => (source === 'smartrecruiters' ? srVariants(label) : slugVariants(label)).map(board => ({ source, board })))
+  const found = await Promise.all(probes.map(async ({ source, board }) => {
+    try {
+      const data = await getJson(SOURCES[source].listUrl(board), { fetch, signal, timeoutMs })
+      const jobs = Number.isFinite(data?.totalFound) ? data.totalFound : parsePostings(source, data, { board, name: label }).length
+      return jobs > 0 ? [{ source, board, name: label, jobs }] : []
+    } catch {
+      return []
+    }
+  }))
+  return signal?.aborted ? [] : found.flat()
 }
 
 // ---- companies store

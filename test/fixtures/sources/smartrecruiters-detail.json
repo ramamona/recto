@@ -1,0 +1,94 @@
+{
+ "id": "744000152065280",
+ "name": "Senior Forward Deployed Engineer",
+ "uuid": "82a05fe1-4d2f-4a8b-b823-34b197ab6e6c",
+ "jobId": "78045d80-39c2-4645-a26e-0241e9b3d8cc",
+ "jobAdId": "7a1b7230-9f50-405c-b92e-589a3413f9b4",
+ "defaultJobAd": true,
+ "refNumber": "REF7405D",
+ "company": {
+  "name": "SEEK",
+  "identifier": "SEEK"
+ },
+ "location": {
+  "city": "Cremorne",
+  "region": "Victoria",
+  "country": "au",
+  "remote": false,
+  "hybrid": true,
+  "fullLocation": "Cremorne, Victoria, Australia"
+ },
+ "customField": [
+  {
+   "fieldId": "COUNTRY",
+   "fieldLabel": "Country/Region",
+   "valueId": "au",
+   "valueLabel": "Australia"
+  },
+  {
+   "fieldId": "5e6ad182ce19930139e373e3",
+   "fieldLabel": "Brands",
+   "valueId": "default",
+   "valueLabel": "SEEK"
+  },
+  {
+   "fieldId": "5f027f7abf992476d781be51",
+   "fieldLabel": "Role Type",
+   "valueId": "439a5676-7737-4263-af55-52ebbaaabaf7",
+   "valueLabel": "Employee"
+  }
+ ],
+ "releasedDate": "2026-09-28T02:30:52.575Z",
+ "postingUrl": "https://jobs.smartrecruiters.com/SEEK/744000152065280-senior-forward-deployed-engineer",
+ "applyUrl": "https://jobs.smartrecruiters.com/SEEK/744000152065280-senior-forward-deployed-engineer?oga=true",
+ "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/SEEK/publication/82a05fe1-4d2f-4a8b-b823-34b197ab6e6c?dcr_ci=SEEK",
+ "jobAd": {
+  "sections": {
+   "companyDescription": {
+    "title": "Company Description",
+    "text": "<p><strong>About SEEK</strong></p><p>SEEK’s portfolio of diverse businesses&#xa0;make a positive impact&#xa0;on a truly global scale. Our purpose is to help people live more fulfilling and productive working lives and help organisations succeed. We create world-class technology solutions to&#xa0;connect more people to relevant&#xa0;employment, education, small business&#xa0;and&#xa0;volunteer opportunities. We&#xa0;have&#xa0;a culture&#xa0;of&#xa0;high-performance&#xa0;in our workplaces and&#xa0;celebrate the diversity of&#xa0;our employees&#xa0;who&#xa0;contribute to the&#xa0;success of our organisation.</p><p><strong>Life at SEEK</strong></p><p>SEEK’s purpose is at the centre of everything we do.&#xa0;<em>Our SEEK</em>, which defines the way we work, is all about what makes us unique and a little bit different. Passion, Team, Delivery and Future are our principles that drive innovation and creativity. SEEK strives to support employee wellbeing by providing an amazing experience at work which led us to being named AFR BOSS Top 10 Best Places to Work in Technology (2021-2024). We are proud to work in an environment that's inclusive where everyone's unique ideas, experiences and perspectives are valued.</p><p>Our award-winning head office in Cremorne (just a 4 min walk from Richmond station) provides an exceptional space to collaborate with colleagues. The building provides sweeping views of the city, a games area, sit and stand desks at every workstation, modern end-of-trip facilities and Thursday night drinks which gives our people an opportunity to connect in a social setting.</p>"
+   },
+   "jobDescription": {
+    "title": "Job Description",
+    "text": "<p><strong>Why this opportunity</strong></p><p>This is an opportunity to shape how SEEK operates by developing practical AI-enabled tools and platforms that can be adopted, scaled and continuously improved. The role offers end-to-end ownership—from identifying high-value opportunities through to implementation, adoption and measurable business impact. You’ll join a fast-paced and supportive environment where people are passionate about SEEK’s purpose, collaborate closely and take a long-term view.</p><p>You will work day-to-day embedded in one or more of SEEK’s teams, partnering with people across the organisation to understand their needs and improve how work gets done. In this role, you will design and deploy AI-enabled intelligence platforms, workflows and tools that strengthen decision-making and improve productivity across SEEK.</p><p>Reporting to the Head of Operational Excellence, this is a senior individual contributor role with no direct reports. You’ll partner with teams across the organisation, including Product, Data, Architecture, AI and Engineering, to solve business problems by building scalable systems, workflows and decision-support tools that improve the speed, quality and consistency of work.</p><p><strong>What you’ll be doing</strong></p><ul><li><p>Own the end-to-end delivery of solutions for embedded teams, from opportunity identification and approach development through to implementation, adoption and realised benefits.</p></li><li><p>Build—and partner with others to build—solutions such as intelligence platforms, copilots embedded into ways of working, and agents that orchestrate and automate core processes.</p></li><li><p>Collaborate across Product, Data, Architecture, AI and Engineering to deliver solutions aligned with SEEK’s technology patterns and share learnings across the organisation.</p></li><li><p>Build capability and encourage adoption through training, coaching, playbooks, templates, communities of practice and effective operating rhythms.</p></li><li><p>Monitor adoption, quality, productivity and business impact, using these insights to continuously improve AI-enabled workflows and tools.</p></li></ul>"
+   },
+   "qualifications": {
+    "title": "Qualifications",
+    "text": "<p><strong>What we’re looking for</strong></p><ul><li>Experience designing and building AI-enabled products, workflows, agents or decision-support systems.</li><li>Strong understanding of modern AI technologies including LLMs, retrieval systems, agent architectures, evaluation approaches and guardrails.</li><li>Ability to translate ambiguous business problems into practical, scalable and maintainable technical solutions.</li><li>Strong business judgement, with the ability to connect organisational objectives to effective systems, workflows and decision-support tools.</li><li>Experience embedding new tools, technologies or operating models through stakeholder engagement, training and coaching.</li><li>Experience in areas such as forward deployed engineering, solutions engineering, product management, consulting, transformation or startup environments will be valuable, as will experience building internal AI products, knowledge systems or intelligence platforms.</li></ul>"
+   },
+   "additionalInformation": {
+    "title": "Additional Information",
+    "text": "<p><strong>Permanent Perks</strong><br>\nAt SEEK we offer:</p><ul><li>Annual Performance Bonus Plan</li><li>Support of flexible working, including a mix of office and work from home days depending on your role.</li><li>Paid and unpaid leave benefits including Personal Flexi Days and Volunteer Days, as well as the opportunity to purchase additional leave</li><li>Support for parents with 14 weeks paid primary carers leave and 2 weeks paid leave for partners</li></ul><p>At SEEK, we are passionate about fostering a culture of inclusion and wellbeing that embraces and values the diversity of our people. We are a purpose driven business that works with heart.</p><p>We know teams with diverse ideas, experiences and perspectives are more creative and are critical to ensuring effective delivery and innovating to enable our future success. As such, we welcome applications from people with diverse backgrounds and life experiences, especially as they relate to gender, sexual identity, culture, faith, disability and life stages. If you have the skills, curiosity and an adaptable mindset but don't meet every responsibility or qualification listed in this advertisement, please still get in touch with us.</p><p>Should you require any specific support&#xa0;or adjustments throughout the recruitment process and beyond, please advise us and we will be happy to assist.</p><p>For this role, only those candidates with the eligible right to work will be considered.</p><p>At SEEK, we may use AI tools to support parts of the hiring process, including reviewing applications or assessing responses. These tools are designed to assist our hiring teams, not replace human judgment. All hiring decisions are made by people. If you’d like more information about how your information is managed during recruitment, please contact the Talent Acquisition Team.</p><p><em>SEEK kindly requests no unsolicited resumes or approaches from recruitment agencies and will not be responsible for any associated fees.</em></p>"
+   },
+   "videos": {
+    "title": "Videos To Watch",
+    "urls": [
+     "https://youtu.be/Sx40s6kn64s"
+    ]
+   }
+  }
+ },
+ "active": true,
+ "visibility": "PUBLIC",
+ "industry": {
+  "id": "internet",
+  "label": "Internet"
+ },
+ "function": {
+  "id": "other",
+  "label": "Other"
+ },
+ "experienceLevel": {
+  "id": "not_applicable",
+  "label": "Not Applicable"
+ },
+ "typeOfEmployment": {
+  "id": "permanent",
+  "label": "Full-time"
+ },
+ "language": {
+  "code": "en-GB",
+  "label": "English (UK)",
+  "labelNative": "English (UK)"
+ }
+}

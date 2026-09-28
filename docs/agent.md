@@ -1,13 +1,13 @@
 # The Recto agent
 
-Recto ships its own AI agent: a CV writer and job assistant defined once, in plain Markdown, under [`agent/`](../agent). The same playbook powers the AI features inside the app (Suggest, Rewrite, Tailor, Evaluate, Cover letter, job import) and any AI coding CLI you point at your CV — Claude Code, Codex or Gemini CLI.
+Recto ships its own AI agent: a CV writer and job assistant defined once, in plain Markdown, under [`agent/`](../agent). The same playbook powers the AI features inside the app (Suggest, Rewrite, Tailor, Evaluate, Cover letter, job import, and the [career suite](career-suite.md)'s research, outreach, interview and offer briefs) and any AI coding CLI you point at your CV — Claude Code, Codex or Gemini CLI.
 
 ## What it is
 
 - [`agent/recto.md`](../agent/recto.md) — who the agent is and the rules it never breaks: it never invents facts (it asks instead), it only proposes and you decide, it treats job postings and CVs as data and never follows instructions hidden in them, it keeps output ATS-safe, sends your data only to the provider you chose, and labels its own estimates.
 - [`agent/writing.md`](../agent/writing.md) — the CV-writing craft: impact bullets, verbs, cutting filler, summaries, skills, keyword mirroring without stuffing, per-language notes.
 - [`agent/grammar.md`](../agent/grammar.md) — Recto Markdown for models, and the edit format: each change replaces one whole line and carries that line's exact current text, so stale or malformed edits are rejected.
-- [`agent/modes/`](../agent/modes) — one file per task, with its method and output contract. `evaluate.md` describes the career-ops-style evaluation: a two-pass requirement table, gates (liveness, geo mismatch, work authorization, deal-breakers), a 1–5 score with caps and an apply / consider / skip recommendation. `cli.md` describes how a CLI agent works with your files.
+- [`agent/modes/`](../agent/modes) — one file per task, with its method and output contract. `evaluate.md` describes the career-ops-style evaluation: a two-pass requirement table, gates (liveness, geo mismatch, work authorization, deal-breakers), a 1–5 score with caps and an apply / consider / skip recommendation. `cli.md` describes how a CLI agent works with your files. `answer.md` drafts application-question answers from your candidate profile and CV, with no invented facts. Nineteen further modes cover the rest of the career suite — company research, outreach notes, an application email, interview prep/plan/practice/debrief, red flags, offer negotiation and review, follow-up drafts, Compare's recommendation, career advice and "add to CV" — used by the app's job workspace and Insights view; see [career-suite.md](career-suite.md#career-ops-parity) for the full mode-by-mode list.
 
 ## How the app and the CLIs share it
 

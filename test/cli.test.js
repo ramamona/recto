@@ -228,3 +228,42 @@ test('apply accepts the { suggestions: [...] } shape the review mode emits', asy
   assert.equal(r.status, 0, String(r.stderr))
   assert.match(readFileSync(join(dir, 'out.md'), 'utf8'), /- Built the API/)
 })
+
+test('discover: scans boards and feeds offline (--fixtures), writes a tracker export of saved jobs with local evaluations', async () => {
+  const fx = async name => JSON.parse(await readFile(new URL(`./fixtures/sources/${name}.json`, import.meta.url), 'utf8'))
+  const now = new Date().toISOString() // keep the fixtures inside the 30-day window
+  const sr = await fx('smartrecruiters')
+  sr.content.forEach(c => { c.releasedDate = now })
+  const jobicy = await fx('jobicy')
+  jobicy.jobs.forEach(j => { j.pubDate = now })
+  const SR = 'https://api.smartrecruiters.com/v1/companies/Carsales/postings'
+  const routes = { [`${SR}?limit=100&offset=0&country=au`]: sr, 'https://jobicy.com/api/v2/remote-jobs?count=50&geo=australia': jobicy }
+  for (const c of sr.content) routes[`${SR}/${c.id}`] = await fx('smartrecruiters-detail')
+  const json = async (name, v) => { await writeFile(out(name), JSON.stringify(v)); return out(name) }
+  const args = ['discover', '--cv', SAMPLE, '--profile', await json('dp.json', {}), '--companies', await json('dc.json', [{ source: 'smartrecruiters', board: 'Carsales', name: 'Carsales' }]),
+    '--fixtures', await json('routes.json', routes), '--country', 'AU']
+  const r = await recto([...args, '--out', out('found.json')])
+  assert.equal(r.code, 0, r.stderr)
+  const data = JSON.parse(await readFile(out('found.json'), 'utf8'))
+  assert.equal(data.format, 'recto-jobs')
+  assert.equal(data.version, 1)
+  assert.equal(data.jobs.length, 7)
+  for (const j of data.jobs) {
+    assert.equal(j.status, 'saved')
+    assert.equal(j.evaluations.length, 1)
+    assert.equal(j.evaluations[0].source, 'local')
+    assert.ok(j.evaluations[0].score >= 1 && j.evaluations[0].score <= 5)
+    assert.ok(j.title && j.company && j.url && j.applyUrl)
+  }
+  assert.ok(data.jobs.some(j => j.id.startsWith('smartrecruiters:Carsales:') && /Why this opportunity/.test(j.text)))
+  assert.match(r.stdout, /7 jobs/)
+
+  const high = await recto([...args, '--out', out('high.json'), '--min-score', '5'])
+  assert.equal(high.code, 0, high.stderr)
+  assert.ok(JSON.parse(await readFile(out('high.json'), 'utf8')).jobs.length < 7)
+  assert.equal((await recto([...args, '--country', 'Narnia'])).code, 2)
+  assert.equal((await recto([...args, '--min-score', 'lots'])).code, 2)
+  const missing = await recto(['discover', ...args.slice(1, 5), '--companies', await json('none.json', [{ source: 'lever', board: 'nope' }]), '--fixtures', out('routes.json'), '--out', out('none-out.json')])
+  assert.equal(missing.code, 0, missing.stderr)
+  assert.match(missing.stderr, /lever · nope: HTTP 404/)
+})

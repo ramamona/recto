@@ -138,6 +138,11 @@ async function appMode() {
   ctx.openJobsDialog = (...a) => import('./ui/jobs-board.js').then(m => m.openJobsBoard(store, ctx, ...a))
   ctx.openDiscover = () => import('./ui/discover-view.js').then(m => m.openDiscover(store, ctx))
   ctx.openPack = (jobId, opts) => import('./ui/pack-view.js').then(m => m.openPack(store, ctx, jobId, opts))
+  ctx.openProfileDialog = () => import('./ui/profile-dialog.js').then(m => m.openProfileDialog(ctx, { doc: store.state.doc })) // the Job tab rebinds it to refresh itself on save
+  ctx.openInsights = () => import('./ui/insights-view.js').then(m => m.openInsights(store, ctx))
+  ctx.openPipeline = () => import('./ui/pipeline-view.js').then(m => m.openPipeline(store, ctx))
+  ctx.openCompare = jobIds => import('./ui/compare-view.js').then(m => m.openCompare(store, ctx, { jobIds }))
+  ctx.openApplyQueue = opts => import('./ui/apply-queue.js').then(m => m.openApplyQueue(store, ctx, opts))
   window.recto = { store, ctx } // console access for debugging
 
   const lastId = store.state.docs[0]?.id

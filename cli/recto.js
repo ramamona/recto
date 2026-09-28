@@ -9,6 +9,7 @@ import { defaultLayout, migrateFile } from '../src/model/layout.js'
 import { applyTemplate } from '../src/model/templates.js'
 import { toJsonResume, fromJsonResume } from '../src/io/jsonresume.js'
 import { extractText } from '../src/preflight/ats.js'
+import { toLatex } from '../src/io/latex.js'
 import { runPreflight } from '../src/preflight/rules.js'
 import { atsReport } from '../src/ats/score.js'
 import { evaluateJob } from '../src/jobs/evaluate.js'
@@ -17,6 +18,10 @@ import { extractHtml } from '../src/io/extract.js'
 import { localSuggestions } from '../src/suggest/local.js'
 import { validateSuggestions } from '../src/ai/guard.js'
 import { normalizeProfile } from '../src/profile.js'
+import { discover } from '../src/jobs/discover.js'
+import { importCompanies } from '../src/jobs/sources.js'
+import { countryOf } from '../src/jobs/region.js'
+import { createTracker } from '../src/jobs/tracker.js'
 import { createServer, listen } from '../serve.js'
 import { launch, countPdfPages } from './chrome.js'
 import { main as autoapply } from './autoapply.js'
@@ -35,14 +40,20 @@ const USAGE = `Usage:
   recto profile [--set key=value ...] [--file <profile.json>] [--json]
   recto autoapply --jobs <jobs.json> --cv <in> [--profile <profile.json>] [--min-score 4] [--max 5]
                   [--submit] [--dry-run] [--log <applications.jsonl>]
+  recto autoapply --bundle <recto-apply.json> [--submit] [--progress-json]
+  recto discover [--profile <profile.json>] [--cv <in>] [--country <code>|any] [--companies <list.json>]
+                 [--out jobs.json] [--min-score <0-5>]
 
 Input:  .cv.json (Recto), .json (Recto or JSON Resume), .md / .txt (Recto Markdown)
-Output: .pdf (needs Chrome/Chromium; set CHROME_PATH), .txt (ATS text), .json (JSON Resume), .cv.json (Recto)
+Output: .pdf (needs Chrome/Chromium; set CHROME_PATH), .txt (ATS text), .tex (LaTeX), .json (JSON Resume), .cv.json (Recto)
 check prints preflight issues and exits 1 on errors. Without a browser it runs the content rules only.
 ats exits 1 on grade F or any critical item. apply exits 1 when any edit was refused.
 evaluate, profile and autoapply use ./profile.json when --profile/--file is not given.
 autoapply fills saved jobs' application forms in a visible Chrome and stops before Submit; --submit submits only
-when every guard passes (score, daily cap, no unfilled required field, no CAPTCHA/login/account wall).`
+when every guard passes (score, daily cap, no unfilled required field, no CAPTCHA/login/account wall).
+discover scans the company boards (default: the starter list) and the Jobicy feed for the country (default: the
+profile's), ranks the jobs against the CV and writes them as saved jobs in the jobs-board export format (--out,
+default jobs.json), ready for Import on the jobs board or recto autoapply --jobs.`
 
 class UsageError extends Error {}
 
@@ -118,6 +129,7 @@ async function exportFile(file, out) {
     return writeFile(out, JSON.stringify(json, null, 2) + '\n')
   }
   if (lower.endsWith('.txt')) return writeFile(out, extractText(parse(file.content), file.layout) + '\n')
+  if (lower.endsWith('.tex')) return writeFile(out, toLatex(parse(file.content), { name: file.name }) + '\n')
   return withPrintPage(file, async ({ report }, page) => {
     const pdf = await page.pdf()
     await writeFile(out, pdf)
@@ -279,7 +291,48 @@ async function profile({ set = [], file, json }) {
   return 0
 }
 
-const COMMANDS = ['export', 'check', 'ats', 'evaluate', 'tips', 'apply', 'profile']
+// Offline runs (tests): --fixtures <routes.json> maps each URL to its JSON body; any other URL is a 404
+async function fixtureFetch(path) {
+  const routes = await readJson(path, 'fixtures')
+  return async url => {
+    const hit = Object.hasOwn(routes, url)
+    return { ok: hit, status: hit ? 200 : 404, json: async () => hit ? routes[url] : {} }
+  }
+}
+
+async function discoverJobs({ profile: profileArg, cv, country, companies: companiesPath, out = 'jobs.json', 'min-score': minScore, fixtures }) {
+  const code = country == null ? undefined : /^any$/i.test(country) ? '' : countryOf(country)
+  if (code === '' && !/^any$/i.test(country)) throw new UsageError(`unknown --country "${country}" (a preset code such as AU, or any)`)
+  if (minScore != null && !Number.isFinite(Number(minScore))) throw new UsageError(`--min-score expects a number, got "${minScore}"`)
+  const path = await profilePath(profileArg)
+  const prof = path ? normalizeProfile(await readJson(path, 'profile')) : undefined
+  const list = companiesPath ? await readJson(companiesPath, 'companies') : JSON.parse(await readFile(new URL('data/companies.json', ROOT), 'utf8'))
+  const { companies, warnings } = importCompanies(list)
+  if (warnings.length) warn(`${warnings.length} invalid companies skipped`)
+  const file = cv ? await readInput(cv) : null
+  const { results, errors } = await discover({
+    companies, profile: prof, fetch: fixtures ? await fixtureFetch(fixtures) : globalThis.fetch,
+    settings: { country: code, minScore, feeds: { jobicy: { enabled: true } } },
+    cv: file ? { source: file.content, doc: parse(file.content), layout: file.layout } : undefined,
+    onProgress: ({ done, total }) => process.stderr.write(`\rscanned ${done}/${total}`)
+  })
+  process.stderr.write('\n')
+  for (const e of errors) warn(`${e.source}${e.board !== e.source ? ` · ${e.board}` : ''}: ${e.message}`)
+  // Same job shape as the Discover view's Save: status saved + the local evaluation
+  const memory = new Map()
+  const tracker = createTracker({ getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v) })
+  for (const { posting: p, evaluation: ev, match } of results) {
+    tracker.save({ id: p.id, url: p.url, applyUrl: p.applyUrl, source: p.source, board: p.board, title: p.title, company: p.company,
+      location: p.location, text: p.text, postedAt: p.postedAt, status: 'saved' })
+    tracker.addEvaluation(p.id, { source: 'local', score: ev.score, recommendation: ev.recommendation, match: match?.score })
+    print(`${ev.score.toFixed(1)}  ${p.title} — ${p.company}${p.location ? ` (${p.location})` : ''}`)
+  }
+  await writeFile(out, tracker.export() + '\n')
+  print(`${results.length} jobs → ${out}`)
+  return 0
+}
+
+const COMMANDS = ['export', 'check', 'ats', 'evaluate', 'tips', 'apply', 'profile', 'discover']
 
 async function main(argv) {
   if (argv[0] === 'autoapply') {
@@ -291,7 +344,9 @@ async function main(argv) {
     options: {
       output: { type: 'string', short: 'o' }, template: { type: 'string' }, help: { type: 'boolean', short: 'h' },
       json: { type: 'boolean' }, job: { type: 'string' }, profile: { type: 'string' }, edits: { type: 'string' },
-      'allow-new-facts': { type: 'boolean' }, set: { type: 'string', multiple: true }, file: { type: 'string' }
+      'allow-new-facts': { type: 'boolean' }, set: { type: 'string', multiple: true }, file: { type: 'string' },
+      cv: { type: 'string' }, country: { type: 'string' }, companies: { type: 'string' }, out: { type: 'string' },
+      'min-score': { type: 'string' }, fixtures: { type: 'string' }
     }
   })
   if (values.help) {
@@ -300,8 +355,9 @@ async function main(argv) {
   }
   const [cmd, input, ...rest] = positionals
   if (cmd === 'profile' && !input) return profile(values)
-  if (!COMMANDS.includes(cmd) || cmd === 'profile' || !input || rest.length) throw new UsageError(`expected one of: ${COMMANDS.join(', ')} (see --help)`)
-  if (cmd === 'export' && !/\.(pdf|txt|json)$/i.test(values.output ?? '')) throw new UsageError('export needs -o <out.pdf|out.txt|out.json>')
+  if (cmd === 'discover' && !input) return discoverJobs(values)
+  if (!COMMANDS.includes(cmd) || cmd === 'profile' || cmd === 'discover' || !input || rest.length) throw new UsageError(`expected one of: ${COMMANDS.join(', ')} (see --help)`)
+  if (cmd === 'export' && !/\.(pdf|txt|tex|json)$/i.test(values.output ?? '')) throw new UsageError('export needs -o <out.pdf|out.txt|out.tex|out.json>')
   const file = await withTemplate(await readInput(input), values.template)
   if (cmd === 'check') return check(file)
   if (cmd === 'ats') return ats(file, values)

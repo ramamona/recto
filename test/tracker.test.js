@@ -130,3 +130,56 @@ test('discover fields and the application pack survive save, reload, export and 
   assert.equal(many.questions.length, 100)
   assert.equal(many.pack, undefined, 'oversized pack dropped')
 })
+
+test('career-suite fields: outcome, followUps, contacts, interviews, offer, artifacts, applyLog survive save, reload, export and import', () => {
+  const s = memStorage()
+  const t = createTracker(s, { now })
+  const fields = {
+    outcome: { stage: 'interview', reason: 'Went with an internal candidate', at: '2026-09-20T00:00:00.000Z' },
+    followUps: [{ due: '2026-10-01', kind: 'follow-up', done: false }, { due: '2026-10-08', kind: 'thank-you', done: true }],
+    contacts: [{ name: 'Sam Lee', role: 'Talent partner', kind: 'recruiter', url: 'https://linkedin.com/in/sam', note: 'Met at meetup' }],
+    interviews: [{ at: '2026-09-18T01:00:00.000Z', round: 'Tech screen', notes: 'React questions', debrief: 'Went well' }],
+    offer: { base: 150000, currency: 'AUD', super: '11.5%', bonus: 10000, equity: 'none', notes: '', deadline: '2026-10-10' },
+    artifacts: { research: { title: 'Acme research', sections: [{ heading: 'Culture', body: 'b', items: ['x'] }], needsInput: [] } },
+    applyLog: [{ at: '2026-09-17T00:00:00.000Z', result: 'submitted', reason: '' }]
+  }
+  const a = t.save({ title: 'x', source: 'smartrecruiters', ...fields })
+  for (const k of Object.keys(fields)) assert.deepEqual(a[k], fields[k], k)
+  for (const src of ['smartrecruiters', 'workable', 'jobicy', 'pipeline']) assert.equal(t.save({ title: 'y', source: src }).source, src)
+  assert.deepEqual(createTracker(s, { now }).get(a.id), t.get(a.id), 'kept in storage')
+  const u = createTracker(memStorage(), { now })
+  u.import(t.export())
+  assert.deepEqual(u.get(a.id), t.get(a.id))
+})
+
+test('career-suite fields: old jobs load unchanged; junk is dropped and sizes are capped', () => {
+  const old = { id: 'j1', title: 'Old', status: 'saved', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+  const t = createTracker(memStorage(), { now })
+  t.import(JSON.stringify([old]))
+  const keys = ['outcome', 'followUps', 'contacts', 'interviews', 'offer', 'artifacts', 'applyLog']
+  assert.deepEqual(keys.filter(k => k in t.get('j1')), [])
+  const junk = t.save({
+    title: 'z', outcome: 'rejected', followUps: [null, { due: '', kind: 'follow-up' }, { due: '2026-10-01', kind: 'spam' }],
+    contacts: [{ name: 'A', kind: 'boss', url: 'javascript:alert(1)' }, 5], interviews: 'x', offer: [1],
+    artifacts: { research: { sections: 'no' }, __proto__x: { sections: [] }, 'Bad Key': { sections: [] } }, applyLog: [{ result: 'x' }]
+  })
+  assert.deepEqual(keys.filter(k => k in junk), ['contacts'])
+  assert.deepEqual(junk.contacts, [{ name: 'A', role: '', kind: 'other', url: '', note: '' }])
+  const big = t.save({
+    title: 'big', outcome: { stage: 'nope', reason: 'r'.repeat(6000) },
+    followUps: Array.from({ length: 60 }, (_, i) => ({ due: `2026-10-${String(i % 28 + 1).padStart(2, '0')}`, kind: 'check-in' })),
+    interviews: Array.from({ length: 60 }, () => ({ at: '2026-09-18', round: 2 })),
+    offer: { base: 'lots', currency: 'AUD', super: 11.5 },
+    artifacts: { research: { title: 't', sections: [{ heading: 'h', body: 'x'.repeat(60_000), items: [] }] } },
+    applyLog: Array.from({ length: 250 }, (_, i) => ({ at: `t${i}`, result: 'failed' }))
+  })
+  assert.deepEqual([big.outcome.stage, big.outcome.reason.length, big.outcome.at], ['', 5000, ''])
+  assert.equal(big.followUps.length, 50)
+  assert.equal(big.followUps[0].done, false)
+  assert.equal(big.interviews.length, 50)
+  assert.equal(big.interviews[0].round, '2')
+  assert.deepEqual(big.offer, { currency: 'AUD', super: 11.5, bonus: '', equity: '', notes: '', deadline: '' })
+  assert.equal(big.artifacts, undefined, 'oversized brief dropped')
+  assert.equal(big.applyLog.length, 200)
+  assert.equal(big.applyLog.at(-1).at, 't249', 'keeps the latest entries')
+})

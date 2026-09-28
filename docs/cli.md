@@ -11,6 +11,8 @@ node cli/recto.js tips <in> [--json]
 node cli/recto.js apply <in> --edits <edits.json> [--allow-new-facts] [-o <out>] [--json]
 node cli/recto.js profile [--set key=value ...] [--file <profile.json>] [--json]
 node cli/recto.js autoapply --jobs <jobs.json> --cv <in> [--profile <profile.json>] [--min-score 4] [--max 5] [--submit] [--dry-run] [--log <applications.jsonl>]
+node cli/recto.js autoapply --bundle <recto-apply.json> [--submit] [--progress-json]
+node cli/recto.js discover [--profile <profile.json>] [--cv <in>] [--country <code>|any] [--companies <list.json>] [--out jobs.json] [--min-score <0-5>]
 node cli/recto.js --help
 ```
 
@@ -32,6 +34,7 @@ The output format comes from the extension of `-o`:
 |---|---|---|
 | `.pdf` | The printed CV: real, selectable text, A4/Letter/… from the layout, one PDF page per canvas page | yes |
 | `.txt` | The plain text an ATS extracts, in PDF stream order: what the ATS panel shows | no |
+| `.tex` | A self-contained LaTeX `article` (only the `geometry`, `hyperref` and `enumitem` packages) | no |
 | `.cv.json` | A Recto document (useful to turn Markdown or JSON Resume into a file the app opens) | no |
 | `.json` | JSON Resume | no |
 
@@ -98,28 +101,51 @@ node cli/recto.js apply cv.cv.json --edits edits.json -o cv.edited.cv.json --jso
 
 ### `profile`
 
-Reads or updates the candidate profile in `./profile.json` (or `--file`): `authorizedIn`, `needsSponsorship`, `locations`, `remote` (`remote`, `hybrid`, `onsite`, `any`), `targetRoles`, `dealBreakers`, `salaryMin`, `currency`. List values are comma-separated. Unknown keys are dropped.
+Reads or updates the [candidate profile](career-suite.md#candidate-profile) in `./profile.json` (or `--file`). Every profile field can be set this way — identity and contact, `country` (a preset code such as `GB`, or its full name), work rights, availability, compensation, checks, background and preferences, for example `authorizedIn`, `needsSponsorship`, `locations`, `remote` (`remote`, `hybrid`, `onsite`, `any`), `targetRoles`, `dealBreakers`, `salaryMin`, `currency`. List values are comma-separated. Unknown keys are dropped. The saved-answers bank and the story bank are managed in the app, not through `--set`.
 
 ```sh
 node cli/recto.js profile --set locations="Berlin, Remote" --set needsSponsorship=true --set dealBreakers="on-call"
+node cli/recto.js profile --set country=GB --set workRights=visa --set clearance=SC
 node cli/recto.js profile --json
 ```
 
+### `discover`
+
+Runs the same scan as the app's [Discover](career-suite.md#discover) view in Node, ranks the results against your CV and writes them as saved jobs in the jobs-board export format — ready for **Import** on the jobs board, or for `recto autoapply --jobs`. Useful for a scheduled scan (cron, a CI job) that hands you a fresh `jobs.json` to review.
+
+```sh
+node cli/recto.js discover --country US --out jobs.json
+node cli/recto.js discover --profile profile.json --cv cv.cv.json --min-score 3.5 --companies my-companies.json
+```
+
+| Flag | Meaning |
+|---|---|
+| `--profile <file>` | Candidate profile. Defaults to `./profile.json` when it exists; supplies the default country, target roles and deal-breakers. |
+| `--cv <file>` | CV to score the results against. Without one, every posting is evaluated against no CV text, so scores come out low and aren't meaningful — pass a CV for a useful ranking. |
+| `--country <code|any>` | A country preset code (`AU`, `US`, …) or `any` for no country filter. Defaults to the profile's country, then the built-in default. (The app's Discover view also tries the browser's time zone and language first.) |
+| `--companies <file>` | A company list JSON (`{ source, board, name }[]`) to scan instead of the built-in starter list. |
+| `--out <file>` | Where to write the results (default `jobs.json`). |
+| `--min-score <0-5>` | Drop results scoring below this. |
+
+It scans the company boards (Greenhouse, Lever, Ashby, SmartRecruiters, Workable) and, when the country preset has one, the Jobicy feed. Board failures are printed as warnings to stderr; the scan continues with whatever sources answered.
+
 ## `autoapply`
 
-Fills in the application forms of your saved jobs, in a Chrome window you can see. By default it stops before Submit so you review and submit yourself. Many job sites forbid automated submissions; you are responsible for using it. See [discover-apply.md](discover-apply.md).
+Fills in the application forms of your saved jobs, in a Chrome window you can see. By default it stops before Submit so you review and submit yourself. Many job sites forbid automated submissions; you are responsible for using it. See [discover-apply.md](discover-apply.md) and [career-suite.md](career-suite.md#one-click-apply) — the app's apply queue drives this same command for you, one job or many at once.
 
 ```sh
 node cli/recto.js autoapply --jobs jobs.json --cv cv.cv.json --dry-run    # print the plan, open nothing
 node cli/recto.js autoapply --jobs jobs.json --cv cv.cv.json              # fill, then you review and submit
 node cli/recto.js autoapply --jobs jobs.json --cv cv.cv.json --submit --min-score 4 --max 5
+node cli/recto.js autoapply --bundle recto-apply.json                     # from the apply queue's download
+node cli/recto.js autoapply --bundle recto-apply.json --submit --progress-json
 ```
 
-`--jobs` is the jobs board export from the app. Only jobs with status `saved` are processed. `--profile` (default `./profile.json` when present) supplies the applicant fields. Name, email, phone and links you leave empty are taken from the CV header. For each job, autoapply:
+`--jobs` is the jobs board export from the app; `--bundle` is a `recto-apply.json` file (jobs, CV and profile together) downloaded from the app's apply queue when it has no local bridge to run this command for you — either works, and `--bundle` replaces `--jobs`/`--cv`/`--profile` (`--min-score`/`--max` on the command line still override the bundle's own values). Only jobs with status `saved` are processed. `--profile` (default `./profile.json` when present) supplies the applicant fields. Name, email, phone and links you leave empty are taken from the CV header. For each job, autoapply:
 
 1. Exports the CV to `out/applications/<job id>/<First>-<Last>-CV.pdf`, or to the pack's `pdfName` when the job has an application pack.
 2. Opens the job's application page in a visible Chrome with its own persistent profile in `~/.recto/chrome`. You can sign in there yourself once, and it stays signed in. Lever and Ashby posting links go to their `/apply` and `/application` pages.
-3. Detects Greenhouse, Lever or Ashby from the URL and the page, and fills fields by their labels. Answers come from the job's application pack first (including drafted answers to custom questions), then from your profile: name, email, phone, LinkedIn/GitHub/website, location, work authorization (only when the question or the job location names a country in `authorizedIn`; codes and names match each other, so `US` matches "United States"), sponsorship, relocation, salary, notice period, and "How did you hear" (Company careers page). Equal-opportunity questions (gender, race, veteran, disability) are answered with the decline option. Password fields are never filled.
+3. Detects Greenhouse, Lever, Ashby, SmartRecruiters or Workable from the URL and the page (any other form gets a generic label-based fill and never submits, even with `--submit`), and fills fields by their labels. Answers come from the job's application pack first (including drafted answers to custom questions), then from your [candidate profile](career-suite.md#candidate-profile) — name, email, phone, LinkedIn/GitHub/website, address, work authorization (only when the question or the job location names a country in `authorizedIn`; codes and names match each other, so `US` matches "United States"), visa details, sponsorship, availability, relocation, salary, notice period, checks and clearances, education, experience, languages, referees, and "How did you hear" (Company careers page) — then from your saved [answer bank](career-suite.md#saved-answers-the-answer-bank) for anything still unanswered. Equal-opportunity questions (gender, race, veteran, disability, and the country preset's own diversity questions) are answered with the decline option. Password fields are never filled.
 4. Attaches the PDF to the resume field and outlines every required field still empty in red.
 
 Then, by default, it prints "Review and submit in the browser, then press Enter", waits, and asks "Did you submit? [y/N]". If you answer yes, the job is marked applied.
@@ -136,6 +162,8 @@ After clicking Submit, it waits for a confirmation: the page moves on, or shows 
 Every attempt is appended to the log (`--log`, default `applications.jsonl`) as one JSON line: `{ at, jobId, company, title, url, mode, result, reason }`. `mode` is `review` or `submit`. `result` is `submitted`, `filled`, `skipped` (for example, no application URL) or `blocked` (a `--submit` guard failed; `reason` lists which ones). Applied jobs are written back to the jobs file with status `applied` and a status-history entry. Import that file into the app and the cards move on the board.
 
 `--dry-run` opens no browser and writes nothing. For each job, it prints the application URL, the fields and answers it would fill, and the `--submit` decision based on the score, the daily cap and any unanswered required pack answers. CAPTCHA, login and form fields can only be checked in the browser. The prompts read from stdin, so piped or closed stdin answers "no".
+
+`--progress-json` is for the app's apply-queue [local bridge](self-hosting.md#the-apiapply-bridge), not for reading by hand: stdout carries only JSON lines — `{ "type": "job", "id", "state": "queued"|"filling"|<result>, "reason"? }`, `{ "type": "wait", "id" }` when a job needs your yes/no, and `{ "type": "done", "summary" }` at the end — while every human-readable message goes to stderr instead. With it, each waiting job reads a single `y`/`n` line from stdin rather than the two interactive prompts above.
 
 ## Exit codes
 

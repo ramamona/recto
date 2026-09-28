@@ -3,16 +3,61 @@
 export const JOBS_KEY = 'recto:jobs'
 export const STATUSES = ['saved', 'applied', 'interview', 'offer', 'rejected', 'no-response', 'skipped']
 export const STALE_DAYS = 21
-const SOURCES = ['greenhouse', 'lever', 'ashby', 'remotive', 'arbeitnow', 'url', 'paste']
+const SOURCES = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable', 'remotive', 'arbeitnow', 'jobicy', 'pipeline', 'url', 'paste']
 const MAX_QUESTIONS = 100
 const MAX_PACK = 200_000 // chars of JSON: answers are short; a pack past this is junk
 const FORMAT = 'recto-jobs'
+export const OUTCOME_STAGES = ['screen', 'interview', 'final', 'offer', '']
+export const FOLLOW_UP_KINDS = ['follow-up', 'thank-you', 'check-in']
+export const CONTACT_KINDS = ['recruiter', 'hiring-manager', 'peer', 'other']
+const MAX_STR = 5000
+const MAX_LIST = 50
+const MAX_ARTIFACT = 50_000 // chars of JSON per mode
+const MAX_APPLY_LOG = 200
 
 const str = v => typeof v === 'string' ? v : ''
 const isJob = j => j && typeof j === 'object' && !Array.isArray(j)
 // Application pack (src/jobs/pack.js) and form questions are kept as given when well-formed; junk or oversized is dropped
 const packOf = v => isJob(v) && Array.isArray(v.answers) && Array.isArray(v.fields) && JSON.stringify(v).length <= MAX_PACK ? v : null
 const questionsOf = v => Array.isArray(v) ? v.filter(q => isJob(q) && str(q.label)).slice(0, MAX_QUESTIONS) : []
+
+// Career-suite fields (suite spec 5): all optional, capped, junk dropped; empty values are left out so old jobs load unchanged
+const cap = v => typeof v === 'number' && Number.isFinite(v) ? String(v) : str(v).slice(0, MAX_STR)
+const numOrStr = v => typeof v === 'number' && Number.isFinite(v) ? v : cap(v)
+const safeLink = v => /^(?:https?:|mailto:|tel:)/i.test(str(v)) ? cap(v) : ''
+const listOf = (v, fn, max = MAX_LIST) => Array.isArray(v) ? v.map(e => isJob(e) ? fn(e) : null).filter(Boolean).slice(0, max) : []
+const outcomeOf = o => ({ stage: OUTCOME_STAGES.includes(o.stage) ? o.stage : '', reason: cap(o.reason), at: cap(o.at) })
+const followUpOf = f => str(f.due) && FOLLOW_UP_KINDS.includes(f.kind) ? { due: cap(f.due), kind: f.kind, done: f.done === true } : null
+const contactOf = c => str(c.name) ? { name: cap(c.name), role: cap(c.role), kind: CONTACT_KINDS.includes(c.kind) ? c.kind : 'other', url: safeLink(c.url), note: cap(c.note) } : null
+const interviewOf = i => ({ at: cap(i.at), round: cap(i.round), notes: cap(i.notes), debrief: cap(i.debrief) })
+const applyEntryOf = e => str(e.at) && str(e.result) ? { at: cap(e.at), result: cap(e.result), reason: cap(e.reason) } : null
+function offerOf(o) {
+  const out = {}
+  const base = o.base === '' || o.base == null ? NaN : Number(o.base)
+  if (Number.isFinite(base) && base >= 0) out.base = base
+  return { ...out, currency: cap(o.currency), super: numOrStr(o.super), bonus: numOrStr(o.bonus), equity: numOrStr(o.equity), notes: cap(o.notes), deadline: cap(o.deadline) }
+}
+// Latest AI brief per mode, kept as given when well-formed and under the size cap
+function artifactsOf(a) {
+  const ok = ([mode, b]) => /^[a-z][a-z-]{0,39}$/.test(mode) && isJob(b) && Array.isArray(b.sections) && JSON.stringify(b).length <= MAX_ARTIFACT
+  const kept = Object.entries(a).filter(ok).slice(0, MAX_LIST)
+  return kept.length ? Object.fromEntries(kept) : null
+}
+function suiteFields(j) {
+  const out = {}
+  if (isJob(j.outcome)) out.outcome = outcomeOf(j.outcome)
+  if (isJob(j.offer)) out.offer = offerOf(j.offer)
+  const artifacts = isJob(j.artifacts) && artifactsOf(j.artifacts)
+  if (artifacts) out.artifacts = artifacts
+  const lists = {
+    followUps: listOf(j.followUps, followUpOf),
+    contacts: listOf(j.contacts, contactOf),
+    interviews: listOf(j.interviews, interviewOf),
+    applyLog: Array.isArray(j.applyLog) ? listOf(j.applyLog, applyEntryOf, Infinity).slice(-MAX_APPLY_LOG) : []
+  }
+  for (const [k, v] of Object.entries(lists)) if (v.length) out[k] = v
+  return out
+}
 const newId = () => globalThis.crypto?.randomUUID?.() ?? `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 // localStorage itself can throw on access (blocked site data); fall back to memory
@@ -58,7 +103,7 @@ function clean(j, stamp) {
   if (questions.length) out.questions = questions
   const pack = packOf(j.pack)
   if (pack) out.pack = pack
-  return out
+  return Object.assign(out, suiteFields(j))
 }
 
 /** `{ list, get, save, remove, addEvaluation, link, export, import }` over `storage`; `now` is injectable for tests.

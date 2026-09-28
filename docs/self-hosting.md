@@ -45,6 +45,16 @@ The route only exists when the server is actually bound to a loopback address (`
 
 **Static hosts (GitHub Pages, Netlify, S3, nginx serving plain files, …) have no server-side code, so this proxy doesn't exist there.** On a static host, Greenhouse, Lever and Ashby links still work (their APIs are fetched directly from the browser), and pasting a job posting's text always works everywhere. Any other link needs either a locally-run `node serve.js`, or the visitor pasting the text themselves — see [assist.md](assist.md#job-links).
 
+### The `/api/apply` bridge
+
+`serve.js` also answers a small `/api/apply` API that lets the app's [one-click apply queue](career-suite.md#one-click-apply) drive `recto autoapply` for you instead of downloading a bundle to run by hand.
+
+Like `/api/fetch`, **this route only exists when the server is bound to a loopback address** (`127.0.0.1`/`localhost`) — any other `--host` disables it, and it checks the incoming `Host` header too, so a page on another origin can't reach it by DNS rebinding. `GET /api/apply` also requires `Sec-Fetch-Site: same-origin` or an `Origin` equal to the server's own origin, and hands back a random, per-process token; every following request (status and every `POST`) must send that token in an `X-Recto-Token` header, checked in constant time, and pass the same origin check. Every `POST` must be `Content-Type: application/json` and is capped at 5 MB. Only one apply run happens at a time (a second `POST /api/apply` while one is running gets `409`).
+
+When a run starts, the server writes the submitted bundle to a temporary directory and spawns `node cli/recto.js autoapply --bundle <file> --progress-json [--submit]` as a child process — no shell, an explicit argument array — and removes the temporary directory once the child exits. It parses the child's JSON-lines stdout into a status the app polls, and forwards your "I submitted it" / "Skip" answers to the child's stdin. Nothing here is exposed to any other origin, and it never runs on a hosted (static) instance.
+
+**Static hosts have no `/api/apply` either.** There, the apply queue downloads a `recto-apply.json` bundle and shows you the exact `recto autoapply --bundle …` command to run yourself — see [career-suite.md](career-suite.md#one-click-apply) and [cli.md](cli.md#autoapply).
+
 Any other static server works too:
 
 ```sh

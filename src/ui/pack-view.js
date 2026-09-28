@@ -1,9 +1,11 @@
 // Application pack (discover-apply spec §3, §5): per job a tailored CV, cover letter, drafted screening answers and
 // standard fields, plus Open application page, Download PDF, Mark applied and the exact `recto autoapply` command.
-// Opened from a Discover card, the board's card drawer, the Job tab or the command bar.
-import { h } from './dom.js'
+// Opened from a Discover card, the board's card drawer, the Job tab or the command bar. Answers the candidate edits are
+// remembered in the profile's answer bank (career-suite spec §3) and reused for similar questions in every pack.
+import { h, debounce } from './dom.js'
 import { addCoverLetterDoc, withSignal } from './job-panel.js'
-import { loadProfile } from '../profile.js'
+import { loadProfile, saveProfile } from '../profile.js'
+import { remember } from '../jobs/answers.js'
 import { buildPack } from '../jobs/pack.js'
 import { parseJob } from '../jobs/parse.js'
 import { createAssist } from '../ai/assist.js'
@@ -35,7 +37,25 @@ export function openPack(store, ctx, jobId, { onChange } = {}) {
     h('header', { class: 'pack-head' }, title,
       h('button', { class: 'ui-btn ui-btn--sm ui-btn--ghost', type: 'button', 'aria-label': t('pack.close'), onClick: () => close() }, '×')),
     body)
-  dialog.addEventListener('close', () => busy?.abort(), { once: true })
+  dialog.addEventListener('close', () => { busy?.abort(); rememberSoon.flush() }, { once: true })
+
+  // Answer bank: edits wait here (by question) and are written to the profile together, debounced
+  const forget = new Set() // questions whose "Remember for similar questions" is off
+  const pending = new Map()
+  function flushBank() {
+    if (!pending.size) return
+    const profile = loadProfile()
+    let bank = profile.answers ?? []
+    for (const e of pending.values()) bank = remember(bank, e, new Date())
+    pending.clear()
+    saveProfile({ ...profile, answers: bank })
+  }
+  const rememberSoon = debounce(flushBank, 800)
+  function rememberAnswer(a, value) {
+    if (!value.trim()) return pending.delete(a.question)
+    pending.set(a.question, { question: a.question, answer: value, options: a.options })
+    rememberSoon()
+  }
 
   const docName = id => store.state.docs.find(d => d.id === id)?.name ?? null
   const cvName = () => store.state.name || store.state.doc.header?.name || t('app.untitled')
@@ -187,6 +207,7 @@ export function openPack(store, ctx, jobId, { onChange } = {}) {
     const update = value => {
       const cur = current()?.pack ?? pack // other answers may have been edited since this render
       savePack({ ...cur, answers: cur.answers.map((x, k) => k === i ? { ...x, answer: value } : x) })
+      if (!forget.has(a.question)) rememberAnswer(a, value)
     }
     const id = `pack-q-${i}`
     const control = a.options?.length
@@ -195,12 +216,31 @@ export function openPack(store, ctx, jobId, { onChange } = {}) {
       : a.type === 'textarea' ? h('textarea', { class: 'ui-input pack-q__text', id, rows: 4, value: a.answer, onChange: e => update(e.target.value) })
         : h('input', { class: 'ui-input', id, type: 'text', value: a.answer, onChange: e => update(e.target.value) })
     const shown = !a.answer ? 'unanswered' : a.source === 'unanswered' ? 'you' : a.source
+    const file = /file/.test(a.type ?? '')
+    const keep = h('input', { type: 'checkbox', id: `${id}-remember`, checked: !forget.has(a.question), onChange: e => {
+      if (e.target.checked) forget.delete(a.question)
+      else { forget.add(a.question); pending.delete(a.question) }
+    } })
+    // Explicit: saves this answer to the pack and the bank now, then moves on to the next unanswered one
+    const answerNow = () => {
+      const value = control.value.trim()
+      if (!value) return control.focus()
+      forget.delete(a.question)
+      update(value)
+      rememberSoon.flush()
+      ctx.toast?.(t('pack.remembered'))
+      render()
+      body.querySelector('[data-action="pack-answer-remember"]')?.closest('.pack-q')?.querySelector('input:not([type=checkbox]), select, textarea')?.focus()
+    }
     return h('div', { class: 'pack-q', dataset: { source: shown } },
       h('div', { class: 'pack-q__head' },
         h('label', { class: 'pack-q__label', htmlFor: id }, a.question, a.required && h('span', { 'aria-label': t('pack.required') }, '*'),
           h('span', { class: `pack-badge is-${shown}` }, t(`pack.source.${shown}`))),
         h('button', { class: 'ui-btn ui-btn--sm ui-btn--ghost', type: 'button', dataset: { action: 'pack-copy' }, 'aria-label': t('pack.copyField', { label: a.question }), onClick: () => copy(control.value) }, t('pack.copy'))),
-      control)
+      control,
+      !file && h('div', { class: 'pack-q__foot' },
+        h('label', { class: 'pack-q__remember', htmlFor: keep.id }, keep, t('pack.remember')),
+        a.required && !a.answer && btn(t('pack.answerRemember'), answerNow, 'pack-answer-remember')))
   }
 
   function render() {

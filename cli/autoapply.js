@@ -1,5 +1,7 @@
 // `recto autoapply` (discover-apply spec 4): fills Greenhouse, Lever and Ashby application forms in a visible Chrome,
-// attaches the CV PDF and stops before Submit unless --submit and every guard passes.
+// attaches the CV PDF and stops before Submit unless --submit and every guard passes. Other forms (SmartRecruiters,
+// Workable, unknown) get a label-based fill and always stop for the user. `--bundle` + `--progress-json` drive it from
+// the app's apply queue through serve.js (career-suite spec §4).
 // Never solves or bypasses CAPTCHAs, never logs in, never creates accounts: those always hand back to the user.
 import { access, appendFile, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -8,15 +10,19 @@ import { createInterface } from 'node:readline'
 import { setTimeout as delay } from 'node:timers/promises'
 import { parseArgs } from 'node:util'
 import { parse } from '../src/model/markdown.js'
+import { migrateFile } from '../src/model/layout.js'
 import { evaluateJob } from '../src/jobs/evaluate.js'
 import * as profiles from '../src/profile.js'
 import { DECLINE_RE, ruleAnswer, ruleOf } from '../src/jobs/pack.js'
+import { findAnswer as bankAnswer } from '../src/jobs/answers.js'
 import { launch as launchChrome } from './chrome.js'
 
 const CONFIRM_TIMEOUT = 20000
 const CONFIRM_RE = /thank you|thanks for applying|application (has been |was )?(received|submitted)|we('ve| have) received your application/i
-const EEO = ['gender', 'race', 'veteran', 'disability']
 const ATS = { greenhouse: /(^|\.)greenhouse\.io$/, lever: /(^|\.)lever\.co$/, ashby: /(^|\.)ashbyhq\.com$/ }
+// Hosts named for the log only: their forms get the generic filler, which never submits
+const FILL_ONLY = { smartrecruiters: /(^|\.)smartrecruiters\.com$/, workable: /(^|\.)workable\.com$/ }
+const MAX_BUNDLE_JOBS = 200
 
 const str = v => typeof v === 'string' ? v.trim() : ''
 const norm = s => String(s ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
@@ -29,13 +35,14 @@ export function applicant(profile, doc) {
   // raw first: keeps applicant fields even if normalizeProfile predates them; prefillProfile is guarded the same way
   const p = { ...raw, ...profiles.normalizeProfile(raw) }
   const eeo = p.eeo && typeof p.eeo === 'object' ? p.eeo : {}
-  return { ...(profiles.prefillProfile?.(p, doc) ?? p), eeo: Object.fromEntries(EEO.map(k => [k, str(eeo[k]) || 'decline'])) }
+  return { ...(profiles.prefillProfile?.(p, doc) ?? p), eeo: Object.fromEntries(profiles.EEO_FIELDS.map(k => [k, str(eeo[k]) || 'decline'])) }
 }
 
 // Standard questions the dry-run plan lists when the pack doesn't cover them; answered by pack.js's rules (same as the app)
 const PLAN_LABELS = ['First name', 'Last name', 'Email', 'Phone', 'LinkedIn', 'GitHub', 'Website', 'Pronouns', 'Sponsorship',
   'Work authorization', 'Relocation', 'Location', 'Salary expectation', 'Notice period', 'How did you hear', 'Gender',
-  'Race/ethnicity', 'Veteran status', 'Disability']
+  'Race/ethnicity', 'Veteran status', 'Disability', 'Visa type', 'Earliest start date', 'Security clearance', 'Police check',
+  "Driver's licence", 'Highest education', 'Years of experience']
 
 /** The option to choose for `value`: 'decline' → a decline/prefer-not option, Yes/No → the option starting with it. */
 export function pickOption(options, value) {
@@ -46,9 +53,9 @@ export function pickOption(options, value) {
   return options.find(o => norm(o) === v) ?? options.find(o => norm(o).length > 2 && (norm(o).includes(v) || v.includes(norm(o)))) ?? null
 }
 
-/** `{ value, source }` for a form field ({ label, options }): pack answer, then pack field, then rule; null = leave it.
- * `location` is the job's, for country-specific questions. */
-export function resolveField(field, { applicant: a, pack, location = '' } = {}) {
+/** `{ value, source }` for a form field ({ label, options }): pack answer, then pack field, then rule, then the answer
+ * bank (`applicant.answers`); null = leave it. `location` is the job's, for country-specific questions. */
+export function resolveField(field, { applicant: a, pack, location = '', findAnswer = bankAnswer } = {}) {
   const label = norm(field.label)
   if (!label) return null
   const same = q => {
@@ -59,7 +66,9 @@ export function resolveField(field, { applicant: a, pack, location = '' } = {}) 
   const known = pack?.fields?.find(x => same(x?.label) && str(x.value))
   if (!answer && !known) {
     const r = ruleAnswer({ label: field.label, type: field.kind, options: field.options ?? [] }, { p: a, where: `${field.label} ${location}` })
-    return r ? { value: r.answer, source: r.source } : null
+    if (r) return { value: r.answer, source: r.source }
+    const b = findAnswer(Array.isArray(a?.answers) ? a.answers : [], field.label, { options: field.options ?? [] })
+    return b && str(b.answer) ? { value: str(b.answer), source: 'bank' } : null
   }
   const hit = answer ? { value: str(answer.answer), source: answer.source ?? 'pack' } : { value: str(known.value), source: 'pack' }
   if (!field.options?.length) return hit
@@ -106,11 +115,29 @@ export function countToday(text, now) {
   }).length
 }
 
-/** 'greenhouse' | 'lever' | 'ashby' | 'generic', by host, then by the form markers found in the page. */
+/** 'greenhouse' | 'lever' | 'ashby' (submittable), 'smartrecruiters' | 'workable' | 'generic' (fill only), by host,
+ * then by the form markers found in the page. */
 export function detectAts(url, dom = {}) {
   let host = ''
   try { host = new URL(url).hostname } catch {}
-  return Object.keys(ATS).find(k => ATS[k].test(host)) ?? Object.keys(ATS).find(k => dom[k]) ?? 'generic'
+  const all = { ...ATS, ...FILL_ONLY }
+  return Object.keys(all).find(k => all[k].test(host)) ?? Object.keys(ATS).find(k => dom[k]) ?? 'generic'
+}
+
+const isObj = v => v && typeof v === 'object' && !Array.isArray(v)
+
+/** What is wrong with an apply-queue bundle ({ jobs, cv: { name, content, layout }, profile?, mode?, minScore?, max? }), or null. */
+export function bundleError(b) {
+  if (!isObj(b)) return 'not a JSON object'
+  if (!Array.isArray(b.jobs) || !b.jobs.length) return 'jobs must be a non-empty list'
+  if (b.jobs.length > MAX_BUNDLE_JOBS) return `at most ${MAX_BUNDLE_JOBS} jobs`
+  if (!b.jobs.every(isObj)) return 'every job must be an object'
+  if (!isObj(b.cv) || typeof b.cv.content !== 'string') return 'cv.content must be text'
+  if (b.profile != null && !isObj(b.profile)) return 'profile must be an object'
+  if (b.minScore != null && !(Number.isFinite(b.minScore) && b.minScore >= 0 && b.minScore <= 5)) return 'minScore must be 0–5'
+  if (b.max != null && !(Number.isInteger(b.max) && b.max >= 0)) return 'max must be a whole number'
+  if (b.mode != null && !['review', 'submit'].includes(b.mode)) return 'mode must be review or submit'
+  return null
 }
 
 /** The application form URL (http/https only): Lever and Ashby postings have the form on a sub-page. */
@@ -277,21 +304,29 @@ async function readJson(path, what, UsageError) {
 }
 
 /** Runs autoapply; returns one result per saved job ({ jobId, result, reason, ats?, fields?, unfilled?, walls? }).
- * deps: readInput(path) → Recto file, exportPdf(file, out), launch, ask(question) → answer, now, print, UsageError. */
+ * `opts.bundle` (apply-queue file: jobs + cv + profile + minScore/max) replaces jobs/cv/profile and is the tracker file
+ * written back; flags win over its minScore/max. `opts.progressJson`: one y/n answer per waiting job instead of two prompts.
+ * deps: readInput(path) → Recto file, exportPdf(file, out), launch, ask(question) → answer, emit(event) (progress events),
+ * findAnswer (answer bank lookup), now, print, UsageError. */
 export async function autoapply(opts, deps) {
   const {
-    jobs: jobsPath, cv: cvPath, profile: profilePath, minScore = 4, max = 5, submit = false, dryRun = false,
+    bundle: bundlePath, cv: cvPath, profile: profilePath, submit = false, dryRun = false, progressJson = false,
     log: logPath = 'applications.jsonl', outDir = join('out', 'applications'), confirmTimeout = CONFIRM_TIMEOUT
   } = opts
   const {
-    readInput, exportPdf, launch = launchChrome, ask = async () => '', now = () => new Date(),
-    print = s => process.stdout.write(s + '\n'), UsageError = Error
+    readInput, exportPdf, launch = launchChrome, ask = async () => '', emit = () => {}, findAnswer = bankAnswer,
+    now = () => new Date(), print = s => process.stdout.write(s + '\n'), UsageError = Error
   } = deps
-  const data = await readJson(jobsPath, 'jobs', UsageError)
+  const jobsPath = bundlePath ?? opts.jobs
+  const data = await readJson(jobsPath, bundlePath ? 'bundle' : 'jobs', UsageError)
+  const problem = bundlePath && bundleError(data)
+  if (problem) throw new UsageError(`autoapply: ${jobsPath} is not an apply bundle: ${problem}`)
   const list = Array.isArray(data) ? data : data?.jobs
   if (!Array.isArray(list)) throw new UsageError(`autoapply: ${jobsPath} is not a jobs export (expected { "jobs": [...] })`)
-  const profile = profilePath ? await readJson(profilePath, 'profile', UsageError) : {}
-  const file = await readInput(cvPath)
+  const profile = bundlePath && data.profile ? data.profile : profilePath ? await readJson(profilePath, 'profile', UsageError) : {}
+  const file = bundlePath ? migrateFile({ ...data.cv, format: 'recto', version: 1 }).file : await readInput(cvPath)
+  const minScore = opts.minScore ?? (bundlePath ? data.minScore : null) ?? 4
+  const max = opts.max ?? (bundlePath ? data.max : null) ?? 5
   const doc = parse(file.content)
   const cv = { source: file.content, doc, layout: file.layout }
   const a = applicant(profile, doc)
@@ -304,6 +339,7 @@ export async function autoapply(opts, deps) {
     const entry = { at: now().toISOString(), jobId: job.id, company: str(job.company), title: str(job.title), url: applyUrlOf(job) ?? str(job.url), mode, result, reason }
     await appendFile(logPath, JSON.stringify(entry) + '\n')
     results.push({ ...entry, ...extra })
+    emit({ type: 'job', id: job.id, state: result, reason })
   }
   const markApplied = async job => {
     const at = now().toISOString()
@@ -329,9 +365,10 @@ export async function autoapply(opts, deps) {
   }
 
   const saved = list.filter(j => j && typeof j === 'object' && j.status === 'saved')
+  saved.forEach((job, i) => { job.id ??= `job-${i + 1}` })
+  for (const job of saved) emit({ type: 'job', id: job.id, state: 'queued' })
   try {
     for (const [i, job] of saved.entries()) {
-      job.id ??= `job-${i + 1}`
       const url = applyUrlOf(job)
       const pack = job.pack && typeof job.pack === 'object' ? job.pack : null
       const score = scoreOf(job, cv, a)
@@ -365,6 +402,7 @@ export async function autoapply(opts, deps) {
         await record(job, 'skipped', 'pdf-export-failed')
         continue
       }
+      emit({ type: 'job', id: job.id, state: 'filling' })
       browser ??= await launch({ headless: false, userDataDir: join(homedir(), '.recto', 'chrome') })
       try {
         page = await browser.newPage(url)
@@ -374,7 +412,7 @@ export async function autoapply(opts, deps) {
         continue
       }
       try {
-        const form = await fillForm(page, url, { applicant: a, pack, pdf, location: str(job.location) })
+        const form = await fillForm(page, url, { applicant: a, pack, pdf, location: str(job.location), findAnswer })
         const extra = { ats: form.ats, fields: form.fields, unfilled: form.unfilled, walls: form.walls }
         print(`  ${form.ats}: filled ${form.fields.filter(f => f.value).length}/${form.fields.length} fields, attached ${basename(pdf)}`)
         if (form.unfilled.length) print(`  unfilled required (outlined in red): ${form.unfilled.map(f => f.label).join('; ')}`)
@@ -382,6 +420,8 @@ export async function autoapply(opts, deps) {
         const failing = submit
           ? submitGuards({ score, minScore, submittedToday, max, unfilled: form.unfilled, walls: form.walls, hasSubmit: form.submit })
           : []
+        // generic filler: a form we do not know is never submitted, even when every guard passes
+        if (submit && !failing.length && !Object.hasOwn(ATS, form.ats)) failing.push('unsupported-ats')
         if (submit && !failing.length) {
           if (await submitAndConfirm(page, confirmTimeout)) {
             await mkdir(resolve(outDir), { recursive: true })
@@ -396,8 +436,14 @@ export async function autoapply(opts, deps) {
           failing.push('no-confirmation')
         }
         if (failing.length) print(`  not submitting: ${failing.join(', ')}`)
-        await ask('  Review and submit in the browser, then press Enter ')
-        const yes = /^y/i.test(str(await ask('  Did you submit? [y/N] ')))
+        let yes
+        if (progressJson) {
+          emit({ type: 'wait', id: job.id })
+          yes = /^y/i.test(str(await ask('')))
+        } else {
+          await ask('  Review and submit in the browser, then press Enter ')
+          yes = /^y/i.test(str(await ask('  Did you submit? [y/N] ')))
+        }
         if (yes) {
           submittedToday++
           await markApplied(job)
@@ -414,15 +460,19 @@ export async function autoapply(opts, deps) {
   } finally {
     await browser?.close()
   }
+  const summary = {}
+  for (const r of results) summary[r.result] = (summary[r.result] ?? 0) + 1
+  emit({ type: 'done', summary })
   return results
 }
 
 // Line-based prompts on stdin; EOF (piped or closed stdin) answers '' so nothing is ever assumed submitted
-function stdinPrompt() {
+// (to `out`: stderr under --progress-json, whose stdout carries only JSON events)
+function stdinPrompt(out = process.stdout) {
   let rl, lines
   return {
     async ask(question) {
-      process.stdout.write(question)
+      out.write(question)
       rl ??= createInterface({ input: process.stdin, terminal: false })
       lines ??= rl[Symbol.asyncIterator]()
       const { value } = await lines.next()
@@ -439,14 +489,14 @@ export async function main(argv, { readInput, exportPdf, UsageError = Error, usa
     options: {
       jobs: { type: 'string' }, cv: { type: 'string' }, profile: { type: 'string' }, 'min-score': { type: 'string' },
       max: { type: 'string' }, submit: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, log: { type: 'string' },
-      help: { type: 'boolean', short: 'h' }
+      bundle: { type: 'string' }, 'progress-json': { type: 'boolean' }, help: { type: 'boolean', short: 'h' }
     }
   })
   if (values.help) {
     process.stdout.write(usage + '\n')
     return 0
   }
-  if (!values.jobs || !values.cv) throw new UsageError('autoapply needs --jobs <jobs.json> and --cv <cv>')
+  if (!values.bundle && (!values.jobs || !values.cv)) throw new UsageError('autoapply needs --jobs <jobs.json> and --cv <cv>, or --bundle <recto-apply.json>')
   const num = (flag, fallback, whole) => {
     const raw = values[flag]
     if (raw === undefined) return fallback
@@ -454,14 +504,17 @@ export async function main(argv, { readInput, exportPdf, UsageError = Error, usa
     if (raw.trim() === '' || !Number.isFinite(n) || n < 0 || (whole && !Number.isInteger(n))) throw new UsageError(`autoapply: --${flag} expects a ${whole ? 'whole ' : ''}number, got "${raw}"`)
     return n
   }
+  const progressJson = !!values['progress-json']
   const opts = {
-    jobs: values.jobs, cv: values.cv, minScore: num('min-score', 4), max: num('max', 5, true),
-    submit: !!values.submit, dryRun: !!values['dry-run'], log: values.log ?? 'applications.jsonl',
+    jobs: values.jobs, cv: values.cv, bundle: values.bundle, minScore: num('min-score'), max: num('max', undefined, true),
+    submit: !!values.submit, dryRun: !!values['dry-run'], log: values.log ?? 'applications.jsonl', progressJson,
     profile: values.profile ?? (await access('profile.json').then(() => 'profile.json', () => null))
   }
-  const prompt = stdinPrompt()
+  const out = progressJson ? process.stderr : process.stdout
+  const prompt = stdinPrompt(out)
+  const extra = progressJson ? { emit: e => process.stdout.write(JSON.stringify(e) + '\n'), print: s => out.write(s + '\n') } : {}
   try {
-    await autoapply(opts, { readInput, exportPdf, UsageError, ask: prompt.ask })
+    await autoapply(opts, { readInput, exportPdf, UsageError, ask: prompt.ask, ...extra })
     return 0
   } finally {
     prompt.close()

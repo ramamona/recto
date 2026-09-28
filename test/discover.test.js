@@ -38,7 +38,9 @@ function fakeFetch (overrides = {}) {
 
 const run = (opts = {}) => {
   const { fetch, calls } = fakeFetch(opts.overrides)
-  return discover({ companies: COMPANIES, feeds: FEEDS, profile: {}, cv, tracker: [], now: NOW, fetch, ...opts }).then(r => ({ ...r, calls }))
+  // country '' = Any: these fixtures are worldwide; the country filter has its own tests
+  return discover({ companies: COMPANIES, feeds: FEEDS, profile: {}, cv, tracker: [], now: NOW, fetch, ...opts, settings: { country: '', ...opts.settings } })
+    .then(r => ({ ...r, calls }))
 }
 const ids = r => r.results.map(x => x.posting.id).sort()
 
@@ -242,23 +244,31 @@ test('discover: never throws on missing or junk inputs', async () => {
   assert.deepEqual(await discover({ fetch }), { results: [], errors: [] })
   const r = await discover({ companies: 'x', feeds: 7, profile: 'x', cv: null, tracker: 'x', settings: 'x', now: NOW, fetch })
   assert.deepEqual(r, { results: [], errors: [] })
-  const noCv = await discover({ companies: COMPANIES, now: NOW, fetch })
+  const noCv = await discover({ companies: COMPANIES, settings: { country: '' }, now: NOW, fetch })
   assert.equal(noCv.results.length, 4)
 })
 
 test('settings: defaults come from the profile; junk is dropped', () => {
   const profile = { targetRoles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid' }
   assert.deepEqual(normalizeDiscoverSettings(null, profile), {
-    roles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid', maxAgeDays: 30, minScore: 0,
-    feeds: { remotive: { enabled: false, query: '' }, arbeitnow: { enabled: false } }
+    roles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid', maxAgeDays: 30, minScore: 0, country: 'AU',
+    feeds: { remotive: { enabled: false, query: '' }, arbeitnow: { enabled: false }, jobicy: { enabled: false } }
   })
   assert.deepEqual(normalizeDiscoverSettings({
     roles: [' Designer ', 'Designer', 3], locations: [], remote: 'mars', maxAgeDays: -2, minScore: 9,
     feeds: { remotive: { enabled: true, query: ' react ' }, arbeitnow: { enabled: 'yes' } }
   }, profile), {
-    roles: ['Designer'], locations: [], remote: 'hybrid', maxAgeDays: 30, minScore: 5,
-    feeds: { remotive: { enabled: true, query: 'react' }, arbeitnow: { enabled: false } }
+    roles: ['Designer'], locations: [], remote: 'hybrid', maxAgeDays: 30, minScore: 5, country: 'AU',
+    feeds: { remotive: { enabled: true, query: 'react' }, arbeitnow: { enabled: false }, jobicy: { enabled: false } }
   })
+  // country: settings → profile → detected (browser) → DEFAULT_COUNTRY; '' = Any
+  assert.equal(normalizeDiscoverSettings(null, { country: 'New Zealand' }, 'GB').country, 'NZ')
+  assert.equal(normalizeDiscoverSettings(null, {}, 'GB').country, 'GB')
+  assert.equal(normalizeDiscoverSettings(null, { country: 'Narnia' }, 'xx').country, 'AU')
+  assert.equal(normalizeDiscoverSettings({ country: 'nz' }, { country: 'Germany' }).country, 'NZ')
+  assert.equal(normalizeDiscoverSettings({ country: '' }, { country: 'Germany' }).country, '')
+  assert.equal(normalizeDiscoverSettings({ country: 'mars' }).country, 'AU')
+  assert.equal(normalizeDiscoverSettings({ feeds: { jobicy: { enabled: true } } }).feeds.jobicy.enabled, true)
   assert.equal(normalizeDiscoverSettings({ maxAgeDays: '14', minScore: '3.5' }).maxAgeDays, 14)
   assert.equal(normalizeDiscoverSettings({ minScore: '3.5' }).minScore, 3.5)
   assert.equal(normalizeDiscoverSettings({}).remote, 'any')
@@ -278,4 +288,58 @@ test('settings: load/save round trip through recto:discover', () => {
   const throwing = { getItem () { throw new Error('blocked') }, setItem () { throw new Error('blocked') } }
   assert.deepEqual(loadDiscoverSettings(throwing, profile), normalizeDiscoverSettings(null, profile))
   assert.doesNotThrow(() => saveDiscoverSettings({}, throwing))
+})
+
+test('discover: country filter — named places, remote within the area or naming no country, listed locations', async () => {
+  const job = (slug, location, remote) => ({ slug, company_name: 'Acme', title: `Engineer ${slug}`, location, remote, url: `https://www.arbeitnow.com/jobs/${slug}`,
+    description: '<p>Build things with care and attention to detail for our team.</p>', created_at: 1790500000 })
+  const jobs = [job('a', 'Sydney, NSW', false), job('b', 'Remote - APAC', true), job('c', 'Remote', true), job('d', 'Remote - US', true),
+    job('e', 'San Francisco, CA', false), job('f', 'London', false), job('g', 'Remote - EMEA', true)]
+  const overrides = { 'https://www.arbeitnow.com/api/job-board-api?page=1': () => reply(200, { data: jobs }) }
+  const scan = async settings => (await run({ companies: [], feeds: { arbeitnow: { enabled: true } }, overrides, settings }))
+    .results.map(x => x.posting.id.split(':')[2]).sort()
+  assert.deepEqual(await scan({ country: 'AU' }), ['a', 'b', 'c'])
+  assert.deepEqual(await scan({ country: 'AU', locations: ['London'] }), ['a', 'b', 'c', 'f'])
+  assert.deepEqual(await scan({ country: 'AU', remote: 'remote' }), ['b', 'c'])
+  assert.deepEqual(await scan({ country: 'AU', remote: 'onsite' }), ['a'])
+  assert.deepEqual(await scan({ country: 'GB' }), ['c', 'f', 'g'])
+  assert.deepEqual(await scan({ country: '' }), ['a', 'b', 'c', 'd', 'e', 'f', 'g'])
+  // the default (no settings country, no profile country) is DEFAULT_COUNTRY
+  const { fetch } = fakeFetch(overrides)
+  const dflt = await discover({ companies: [], feeds: { arbeitnow: { enabled: true } }, cv, now: NOW, fetch })
+  assert.deepEqual(dflt.results.map(x => x.posting.id.split(':')[2]).sort(), ['a', 'b', 'c'])
+})
+
+test('discover: SmartRecruiters (country filter + job ad detail), Workable and Jobicy (geo)', async () => {
+  const SR = 'https://api.smartrecruiters.com/v1/companies/Carsales/postings'
+  const overrides = {
+    [`${SR}?limit=100&offset=0&country=au`]: () => reply(200, fixture('smartrecruiters')),
+    'https://apply.workable.com/api/v1/widget/accounts/rokt?details=true': () => reply(200, fixture('workable')),
+    'https://jobicy.com/api/v2/remote-jobs?count=50&geo=australia': () => reply(200, fixture('jobicy'))
+  }
+  for (const c of fixture('smartrecruiters').content) overrides[`${SR}/${c.id}`] = () => reply(200, fixture('smartrecruiters-detail'))
+  const r = await run({
+    companies: [{ source: 'smartrecruiters', board: 'Carsales', name: 'Carsales' }, { source: 'workable', board: 'rokt', name: 'Rokt' }],
+    feeds: { jobicy: { enabled: true } }, settings: { country: 'AU' }, overrides
+  })
+  assert.deepEqual(r.errors, [])
+  assert.deepEqual([...r.calls].sort(), Object.keys(overrides).sort())
+  assert.deepEqual(ids(r), [
+    'jobicy:jobicy:151545', 'jobicy:jobicy:151889', 'jobicy:jobicy:151891', 'jobicy:jobicy:154095',
+    'smartrecruiters:Carsales:744000150805659', 'smartrecruiters:Carsales:744000151484209', 'smartrecruiters:Carsales:744000152067859',
+    'workable:rokt:470376CA23', 'workable:rokt:78589A4D7B'
+  ])
+  for (const x of r.results.filter(x => x.posting.source === 'smartrecruiters')) assert.match(x.posting.text, /Why this opportunity/)
+  // a failed detail request keeps the posting (without text)
+  const failing = { ...overrides }
+  for (const c of fixture('smartrecruiters').content) failing[`${SR}/${c.id}`] = () => reply(500, {})
+  const f = await run({ companies: [{ source: 'smartrecruiters', board: 'Carsales', name: 'Carsales' }], feeds: {}, settings: { country: 'AU' }, overrides: failing })
+  assert.equal(f.results.length, 3)
+})
+
+test('settings: the first load (nothing stored) turns the Jobicy feed on; a saved choice wins', async () => {
+  const { loadDiscoverSettings } = await import('../src/jobs/discover.js')
+  const mem = v => ({ getItem: () => v, setItem () {} })
+  assert.equal(loadDiscoverSettings(mem(null)).feeds.jobicy.enabled, true)
+  assert.equal(loadDiscoverSettings(mem(JSON.stringify({ feeds: { jobicy: { enabled: false } } }))).feeds.jobicy.enabled, false)
 })

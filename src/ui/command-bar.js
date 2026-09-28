@@ -57,6 +57,7 @@ function jobAction(id, label, ctx, store) {
 export function buildActions(store, ctx) {
   const t = ctx.t
   const openPanel = id => () => (ctx.openPanel ? ctx.openPanel(id) : store.setUi({ panel: id }))
+  const savedIds = () => (ctx.tracker?.list?.() ?? []).filter(j => j.status === 'saved').map(j => j.id)
   const list = [
     { id: 'ai.improve', group: 'ai', label: t('cmd.ai.improve'), available: () => typeof ctx.runAssist === 'function', run: () => ctx.runAssist(a => a.suggest()) },
     {
@@ -69,6 +70,12 @@ export function buildActions(store, ctx) {
     { id: 'app.templates', group: 'app', label: t('cmd.app.templates'), available: () => typeof ctx.topbar?.showTemplates === 'function', run: () => ctx.topbar.showTemplates() },
     { id: 'app.jobsBoard', group: 'app', label: t('cmd.app.jobsBoard'), available: () => typeof ctx.openJobsDialog === 'function', run: () => ctx.openJobsDialog() },
     { id: 'app.discover', group: 'app', label: t('cmd.app.discover'), available: () => typeof ctx.openDiscover === 'function', run: () => ctx.openDiscover() },
+    { id: 'app.pipeline', group: 'app', label: t('cmd.app.pipeline'), available: () => typeof ctx.openPipeline === 'function', run: () => ctx.openPipeline() },
+    { id: 'app.insights', group: 'app', label: t('cmd.app.insights'), available: () => typeof ctx.openInsights === 'function', run: () => ctx.openInsights() },
+    {
+      id: 'app.applySaved', group: 'app', label: t('cmd.app.applySaved'),
+      available: () => typeof ctx.openApplyQueue === 'function' && savedIds().length > 0, run: () => ctx.openApplyQueue({ jobIds: savedIds() }),
+    },
     {
       id: 'app.prepare', group: 'app', label: t('cmd.app.prepare'),
       available: () => typeof ctx.openPack === 'function' && !!store.state.activeJob?.id, run: () => ctx.openPack(store.state.activeJob.id),

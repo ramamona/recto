@@ -56,6 +56,46 @@
 .board-rec.is-apply { color: var(--ui-ok); }
 .board-rec.is-skip { color: var(--ui-error); }
 
+.board-card__select { float: right; margin: 2px 0 0 6px; }
+.board-chip--due { background: var(--ui-warn-soft); color: var(--ui-warn); }
+
+/* Job workspace (career-suite spec §7): drawer tabs and AI brief blocks */
+.ws-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 10px 0 4px; border-bottom: 1px solid var(--ui-border); }
+.ws-tab { all: unset; cursor: pointer; padding: 6px 8px; font-size: var(--ui-size-sm); border-bottom: 2px solid transparent; }
+.ws-tab[aria-selected='true'] { border-bottom-color: var(--ui-accent); font-weight: 600; }
+.ws-tab:focus-visible { box-shadow: var(--ui-focus); }
+.ws-block { margin-top: 12px; }
+.ws-block__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.board-drawer .ws-block__head h3, .compare .ws-block__head h3 { flex: 1; margin: 0; font-size: var(--ui-size); font-weight: 650; }
+.ws-field { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; font-size: var(--ui-size-sm); }
+.ws-field .ui-input, .ws-field .ui-select { width: 100%; box-sizing: border-box; }
+.ws-area { resize: vertical; font: inherit; }
+.ws-item { margin: 8px 0; padding: 6px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.ws-item legend { padding: 0 4px; font-weight: 600; }
+.ws-brief { margin-top: 6px; padding: 8px 10px; border-radius: var(--ui-radius); background: var(--ui-desk); }
+.ws-brief h4 { margin: 0 0 4px; font-size: var(--ui-size); }
+.ws-brief h5 { margin: 8px 0 2px; font-size: var(--ui-size-sm); }
+.ws-brief p { margin: 4px 0; white-space: pre-wrap; }
+.ws-brief ul { margin: 4px 0; padding-left: 18px; }
+.ws-brief blockquote { margin: 4px 0; padding-left: 8px; border-left: 2px solid var(--ui-border-strong); }
+.ws-follow { margin: 0; padding: 0; list-style: none; }
+.ws-follow li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 2px 0; }
+.ws-follow li.is-overdue label { color: var(--ui-warn); }
+.ws-gap th { padding-right: 12px; text-align: left; font-weight: 400; color: var(--ui-muted); }
+.ws-note { padding: 6px 8px; border-radius: var(--ui-radius-sm); background: var(--ui-warn-soft); font-size: var(--ui-size-sm); }
+.ws-signal.is-high { color: var(--ui-error); }
+.ws-signal.is-medium { color: var(--ui-warn); }
+
+/* Compare 2–5 jobs */
+.compare { width: min(960px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+  background: var(--ui-surface); color: var(--ui-text); font: var(--ui-size)/1.4 var(--ui-font); box-shadow: var(--ui-shadow); }
+.compare > .compare-scroll, .compare > .compare-ai { margin: 0 16px 16px; }
+.compare-scroll { overflow-x: auto; }
+.compare-table { width: 100%; border-collapse: collapse; font-size: var(--ui-size-sm); }
+.compare-table th, .compare-table td { padding: 6px 8px; border-bottom: 1px solid var(--ui-border); text-align: left; vertical-align: top; }
+.compare-table thead th { font-weight: 650; }
+.compare-table tbody th { font-weight: 400; color: var(--ui-muted); white-space: nowrap; }
+
 @media (max-width: 700px) {
   .board-body { flex-direction: column; }
   .board-drawer { flex-basis: auto; max-height: 60%; border-left: 0; border-top: 1px solid var(--ui-border); }

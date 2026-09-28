@@ -1,0 +1,55 @@
+/* Candidate profile view (career-suite spec §3): full-screen dialog, section nav, preset-driven form, saved answers,
+   story bank; plus the pack view's answer-bank controls. */
+.cp {
+  width: 100vw; max-width: none; height: 100vh; max-height: none; margin: 0; padding: 0; border: 0;
+  background: var(--ui-bg); color: var(--ui-text); font: var(--ui-size)/1.4 var(--ui-font);
+}
+.cp[open] { display: flex; flex-direction: column; }
+.cp-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-gap); padding: 10px 16px; background: var(--ui-surface); border-bottom: 1px solid var(--ui-border); }
+.cp-head__title { margin: 0; font-size: 16px; font-weight: 650; }
+.cp-country { display: flex; align-items: center; gap: 6px; }
+.cp-meter { position: relative; display: flex; align-items: center; gap: 8px; }
+.cp-meter__bar { width: 120px; accent-color: var(--ui-accent); }
+.cp-meter__text { font-size: var(--ui-size-sm); color: var(--ui-muted); }
+.cp-missing summary { cursor: pointer; font-size: var(--ui-size-sm); color: var(--ui-accent-text); }
+.cp-missing[open] .cp-missing__list {
+  position: absolute; top: 100%; left: 0; z-index: 2; width: min(420px, 90vw); max-height: 50vh; overflow-y: auto; margin: 6px 0 0; padding: 8px 12px;
+  list-style: none; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius); box-shadow: var(--ui-shadow);
+}
+.cp-missing__list li { padding: 2px 0; }
+.cp-missing__list button { text-align: left; }
+
+.cp-body { flex: 1; min-height: 0; display: flex; }
+.cp-nav { flex: 0 0 200px; overflow-y: auto; padding: 12px 8px; border-right: 1px solid var(--ui-border); background: var(--ui-surface); }
+.cp-nav ul { margin: 0; padding: 0; list-style: none; }
+.cp-nav__item { all: unset; box-sizing: border-box; display: block; width: 100%; padding: 6px 10px; border-radius: var(--ui-radius-sm); cursor: pointer; }
+.cp-nav__item:hover { background: var(--ui-desk); }
+.cp-nav__item:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
+.cp-nav__item[aria-current='true'] { background: var(--ui-accent-soft); font-weight: 600; }
+.cp-main { flex: 1; min-width: 0; overflow-y: auto; padding: 8px 24px 48px; }
+.cp-intro { max-width: 760px; }
+.cp-form { max-width: 760px; }
+.cp-section { margin: 0 0 12px; padding: 12px 0 8px; border: 0; border-top: 1px solid var(--ui-border); scroll-margin-top: 8px; }
+.cp-section__title { padding: 0; font-size: 15px; font-weight: 650; }
+.cp-group { margin: 8px 0; padding: 0; border: 0; }
+.cp-group .ai-row { display: inline-flex; margin: 4px 16px 0 0; }
+.cp-textarea { width: 100%; box-sizing: border-box; min-height: 3em; resize: vertical; font: inherit; }
+.cp-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.cp-toolbar input[type='search'] { flex: 1; min-width: 160px; }
+.cp-cards { display: grid; gap: 10px; }
+.cp-card { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-surface); }
+.cp-card .ui-input { width: 100%; box-sizing: border-box; }
+.cp-card__foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+@media (max-width: 720px) {
+  .cp-body { flex-direction: column; }
+  .cp-nav { flex: none; border-right: 0; border-bottom: 1px solid var(--ui-border); }
+  .cp-nav ul { display: flex; flex-wrap: wrap; gap: 4px; }
+  .cp-nav__item { width: auto; }
+  .cp-main { padding: 8px 16px 32px; }
+}
+
+/* Pack view: answer bank */
+.pack-q__foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.pack-q__remember { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ui-size-sm); color: var(--ui-muted); }
+.pack-badge.is-bank { background: var(--ui-info-soft); }

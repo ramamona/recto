@@ -13,7 +13,8 @@ Recto is a folder of static files. The browser loads `index.html`, which loads `
 
 ```
 index.html                  app shell, CSP meta, stylesheets, <script type=module src=src/main.js>
-serve.js                    zero-dependency static server (createServer, listen); used by the CLI and smoke test
+serve.js                    zero-dependency static server (createServer, listen); used by the CLI and smoke test; loopback-only
+                            /api/fetch (job-link proxy) and /api/apply (drives `recto autoapply` for the apply queue)
 src/main.js                 boot: locale, store, storage, UI mounts, shortcuts, banners; ?print mode and window.rectoReady
 src/store.js                state snapshot, actions, { content, layout } undo history, autosave wiring
 
@@ -47,41 +48,72 @@ src/ats/                    pure
 
 src/io/
   jsonresume.js             pure: toJsonResume, fromJsonResume
+  latex.js                  pure: toLatex(doc, layout, { name }) → a self-contained LaTeX article (geometry, hyperref,
+                             enumitem only), following the layout's section order, hidden sections and column reading order
   plaintext.js              pure: fromPlainText(text, lang) → { content, notes }; pasted or extracted CV text → Recto Markdown draft
   extract.js                pure: extractFile(File) → { text, kind, warnings }; readers for DOCX, PDF, HTML, RTF, TXT/MD (never throws)
   storage.js                localStorage documents, IndexedDB fonts, photo downscaling
   files.js                  open / save / download, File System Access API where available
 
 src/ai/                     pure; no fetch or storage happens at import, only when called
-  providers.js               createClient(connection): one client per provider (Anthropic, OpenAI, OpenRouter, Ollama, LM Studio, Custom) behind complete()/listModels()/test(); OpenRouter's PKCE sign-in
+  providers.js               createClient(connection): one client per provider (Anthropic, OpenAI, OpenRouter, Google Gemini, GitHub Models, Ollama, LM Studio, Custom) behind complete()/listModels()/test(); OpenRouter's PKCE sign-in
   connections.js              the active connection and per-provider consent: memory first, localStorage['recto:ai'] only when the user opts to remember
   guard.js                    validateSuggestions: checks an AI suggestion's line still matches, keeps its Recto Markdown kind, and flags facts (numbers, URLs, capitalized words) not already in the CV as "new-facts"
-  prompts.js                  prompt and JSON-Schema builders per feature (suggest, rewrite, tailor, evaluate, cover letter, extract job); numberSource prefixes each line so replies can cite it
-  assist.js                   createAssist({ client, getState }): prompt → client.complete → tolerant JSON parse with one retry → guard.js validation → normalized result
+  prompts.js                  prompt and JSON-Schema builders per feature (suggest, rewrite, tailor, evaluate, cover letter, extract job,
+                               practice, stories, add-to-CV, classify-reply) plus BRIEF_MODES/briefPrompt for the 15 career-ops-parity
+                               brief modes (research, outreach, email, interview-prep, interview-plan, debrief, redflags, negotiate,
+                               offer-review, followup, compare, training, project, titles, upskill); numberSource prefixes each line
+                               so replies can cite it; every prompt carries the no-fabrication rule
+  assist.js                   createAssist({ client, getState }): prompt → client.complete → tolerant JSON parse with one retry →
+                               guard.js validation → normalized result; brief(mode, { job, notes, extra }) → Brief { title,
+                               sections[], needsInput[] } for the modes above, practice({ job, question, answer }), stories()
+                               (drafted only from cited CV lines), addToCv(text), classifyReply(text)
+  playbook.js                  loads agent/modes/*.md keyed by file name for the app's AI prompts (career mode files are optional;
+                                a missing one only drops that entry)
 
 src/jobs/                   pure
+  region.js                    country presets (career suite): REGIONS (AU, NZ, GB, US, CA, IE, DE, FR, SG, IN — states,
+                                currency, retirement wording, clearances, checks, diversity items, feed codes), DEFAULT_COUNTRY,
+                                countryOf/regionOf/mentionsCountry/inArea/countriesIn, authorizedFor(authorizedIn, text),
+                                detectCountry({ timeZone, language }); the single source of country matching for discover.js,
+                                evaluate.js and pack.js
   parse.js                    parseJob(text): postings → { title, company, location, requirements, keywords, salary?, postedAt?, signals }; keywordsIn/canonicalTokens (a ~140-term tech/soft-skill vocabulary plus capitalisation heuristics) back both parsing and matching
   match.js                     matchCv(cv, job): the local Recto match estimate (keywords 55%, requirements 20%, parseability 15%, essentials 10%), no AI
   legitimacy.js                checkLegitimacy(job): heuristic flags (stale/no posting date, reposted, payment or ID requests, messaging-app redirects, implausible salary, generic text, email/domain mismatch, urgency language) → ok/caution/red-flag
   evaluate.js                  evaluateJob({ source, doc, layout, issues }, job, { profile, now, liveness }) → the career-ops-style Evaluation:
-                                role summary, gates (liveness, geo-mismatch, work authorization, deal-breakers), a two-pass
-                                requirement table (importance from the JD alone, then matched against the CV with quoted evidence),
-                                a 1–5 score capped by the gates, recommendation, and legitimacy incl. a prompt-injection check
+                                role summary, gates (liveness, geo-mismatch, work authorization via region.js authorizedFor,
+                                deal-breakers), a two-pass requirement table (importance from the JD alone, then matched
+                                against the CV with quoted evidence), a 1–5 score capped by the gates, recommendation, and
+                                legitimacy incl. a prompt-injection check
   tracker.js                   createTracker(storage): jobs in localStorage['recto:jobs'], CRUD, evaluations (addEvaluation), export/import
                                 JSON; STATUSES incl. 'no-response', statusHistory per job, staleApplied(job, now, days=21); keeps a job's
-                                applyUrl, board, questions and application pack
-  sources.js                   job-source adapters (Greenhouse, Lever, Ashby boards; Remotive, Arbeitnow feeds) → normalized
-                                Postings; Greenhouse form questions (fetchDetails); the company list in localStorage['recto:companies']
+                                applyUrl, board, questions, application pack, and (career suite) optional outcome, followUps,
+                                contacts, interviews, offer, per-mode AI artifacts and an applyLog
+  sources.js                   job-source adapters (Greenhouse, Lever, Ashby, SmartRecruiters, Workable boards; Remotive,
+                                Arbeitnow, Jobicy feeds) → normalized Postings; Greenhouse/SmartRecruiters form questions
+                                (fetchDetails); findBoards(name, { fetch }) probes slug variants of a company name across every
+                                board for a public one with open roles; the company list in localStorage['recto:companies']
   discover.js                  discover({ companies, settings, profile, cv, tracker, fetch }): scan with concurrency 6, filter by
-                                roles/location/remote/age/deal-breakers, drop tracked jobs, evaluate locally, rank; scan settings
-                                in localStorage['recto:discover']
+                                roles/location/remote/age/deal-breakers/country (region.js mentionsCountry/inArea), drop tracked
+                                jobs, evaluate locally, rank; scan settings in localStorage['recto:discover'] (incl. country, feeds.jobicy)
+  answers.js                   the answer bank (career suite): normalizeQuestion, similarity (token Jaccard), findAnswer(bank, q,
+                                { options }) → exact match, then same rule, then similarity ≥ 0.6 (choice answers mapped onto
+                                options), remember(bank, { question, answer, options }, now), import/exportAnswers,
+                                COMMON_QUESTIONS + commonQuestions(country), completeness(profile, country)
   pack.js                      buildPack({ job, cv, profile, assist }): the application pack (standard fields, rule answers from
-                                profile/CV, AI drafts for free text only); ruleAnswer/authorizedFor shared with cli/autoapply.js
+                                every candidate-profile field, then the answer bank, then AI drafts for free text only);
+                                ruleAnswer/authorizedFor shared with cli/autoapply.js
+  insights.js                  (career suite) funnel/rates/rejections/reposts/calibration/skillGaps/adjacentTitles from tracker
+                                jobs; cadence/followUpsDue (follow-up scheduling); classifyReply(text) → rule-based reply
+                                classification; salaryGap({ desired, advertised, offered }); compare(jobs) → Compare view rows
   fetch.js                     fetchJob(url): Greenhouse/Lever/Ashby public APIs, then the local /api/fetch proxy (serve.js), then an injected webFetch, else rejects with { code: 'needs-paste' }
 
-src/profile.js               pure; localStorage['recto:profile']: loadProfile/saveProfile/normalizeProfile — authorized
-                              countries, sponsorship, locations, remote preference, target roles, deal-breakers, salary floor.
-                              An empty field means that gate is skipped in evaluateJob, never guessed.
+src/profile.js               pure; localStorage['recto:profile']: loadProfile/saveProfile/normalizeProfile — the full career
+                              suite candidate profile (identity, contact, address/country, work rights, availability,
+                              compensation, checks, background, preferences, diversity, the answers bank, the story bank), plus
+                              the original authorized countries, sponsorship, locations, remote preference, target roles,
+                              deal-breakers, salary floor. An empty field means that gate is skipped in evaluateJob, never
+                              guessed; old profiles load unchanged.
 
 src/suggest/
   local.js                   pure: localSuggestions(source, doc, lang) — deterministic bullet tips (weak opener, no metric, passive voice, filler words, long bullet, repeated verb) with no AI; English-only rules skip other languages
@@ -104,35 +136,65 @@ src/ui/
   jobs-dialog.js              (superseded by jobs-board.js; kept only as dead code — nothing imports it any more)
   jobs-board.js               openJobsBoard(store, ctx): full-screen board (spec §5) — 6 columns + collapsed Skipped,
                               drag-and-drop plus ←/→ keyboard moves (both record a statusHistory entry), stale-applied
-                              hint, detail drawer, header search/counts/export/import; replaces jobs-dialog.js's role
+                              hint, per-card selection checkboxes and overdue follow-up chip, header Compare/Apply to
+                              selected/Apply to all saved/Insights, search/counts/export/import; a card opens job-workspace.js
   assist-panel.js             Suggest tab: AI diff cards (word-level LCS diff, accept/reject/edit per card, "Accept all safe") plus src/suggest/local.js's deterministic tips; also sets ctx.runAssist
   job-panel.js                Job tab: paste a link or text → parseJob/fetchJob, the match gauge, legitimacy flags, the
                               local evaluateJob report (rendered as soon as a job is parsed, no AI needed), "Refine with
                               AI", and the AI actions (Evaluate, Tailor CV, Draft cover letter, Save to tracker); also
                               registers ctx.openProfileDialog
-  discover-view.js            openDiscover(store, ctx): full-screen Discover view — scan settings and company list, Scan with
-                              progress, filter chips, ranked cards with Save · Skip · Prepare application
-  pack-view.js                openPack(store, ctx, jobId): application pack dialog (tailored CV, cover letter, questions, fields,
-                              Open application page, Mark applied, the autoapply command); the pack is stored on the tracker job
-  profile-dialog.js           openProfileDialog(ctx): candidate profile form over src/profile.js
-  command-bar.js              mountCommandBar(store, ctx): Cmd/Ctrl-K palette over AI actions, app actions and "go to
+  discover-view.js            openDiscover(store, ctx): full-screen Discover view — country select (region.js), scan
+                              settings and company list, Find boards, Scan with progress, filter chips, per-result
+                              checkboxes + Select ★≥n + Apply to selected, a Pipeline inbox header button, ranked cards
+                              with Save · Skip · Prepare application
+  pack-view.js                openPack(store, ctx, jobId): application pack dialog (tailored CV, cover letter, questions
+                              with answer-bank "Remember for similar questions", fields, Open application page, Mark
+                              applied, the autoapply command); the pack is stored on the tracker job
+  profile-dialog.js           openProfileDialog(ctx): full-screen Candidate profile view over src/profile.js — a left
+                              section nav, a country select driving preset fields, a completeness meter, saved-answers
+                              and story-bank management
+  apply-queue.js               openApplyQueue(store, ctx, { jobIds }): the one-click apply queue — prepare packs for every
+                              job, one grouped form for missing answers (writes the answer bank), then run via the
+                              serve.js /api/apply bridge (status polling, "I submitted it"/Skip, Stop) or, hosted, a
+                              downloaded recto-apply.json bundle and the recto autoapply --bundle command
+  job-workspace.js             the board drawer's tab strip: Overview, Pack, Research, Outreach, Interview, Offer,
+                              Follow-ups; each AI tab stores its result on the tracker job (artifacts[mode]) with
+                              Generate/Regenerate and Copy, and needs a connected provider (else "Connect AI providers")
+  compare-view.js              openCompare(store, ctx, { jobIds }): a 2–5 job side-by-side table (src/jobs/insights.js
+                              compare) plus an optional AI recommendation across them
+  insights-view.js             openInsights(store, ctx): full-screen Insights — funnel, response rates, score
+                              calibration, rejections, reposts/ghost suspects, top skill gaps (+AI upskill plan),
+                              adjacent titles (+AI suggestions), career advice (AI), CSV export of the funnel
+  pipeline-view.js             openPipeline(store, ctx): full-screen Pipeline inbox — paste links/JDs, Process all
+                              (fetch → parse → evaluate → optional AI deep-evaluate → save → build pack, 2 at a time),
+                              per-item state and retry, Apply to processed
+  command-bar.js              mountCommandBar(store, ctx): Cmd/Ctrl-K palette over AI actions, app actions (incl.
+                              Candidate profile, Discover, Pipeline inbox, Insights, Apply to all saved) and "go to
                               section", fuzzy-filtered, recent commands first; an action whose ctx function isn't
                               wired up yet is left out of the list rather than shown disabled
 
-styles/                     app.css, editor.css, canvas.css, inspector.css, assist.css, board.css, command.css, discover.css (app UI; discover.css also styles the pack); cv.css (the pages)
+styles/                     app.css, editor.css, canvas.css, inspector.css, assist.css, board.css, command.css, discover.css
+                            (app UI; discover.css also styles the pack and the Pipeline inbox), profile.css, apply.css,
+                            insights.css; cv.css (the pages)
 locales/en.json             UI strings (flat keys)
 templates/                  index.json + one JSON file per template
 samples/sample.cv.json      first-run document and smoke-test input
-cli/recto.js  cli/chrome.js CLI; minimal DevTools-protocol driver over --remote-debugging-pipe
+cli/recto.js  cli/chrome.js CLI; minimal DevTools-protocol driver over --remote-debugging-pipe; also `recto discover`
 cli/autoapply.js            `recto autoapply`: fills saved jobs' application forms in a visible Chrome, stops before Submit
-                            unless --submit and every guard passes (score, daily cap, required fields, CAPTCHA/login/account wall)
-agent/                      the agent playbook; agent/modes/answer.md drafts screening-question answers (no invented facts)
+                            unless --submit and every guard passes (score, daily cap, required fields, CAPTCHA/login/account
+                            wall); --bundle/--progress-json for the app's local apply-queue bridge (serve.js /api/apply)
+agent/                      the agent playbook; agent/modes/ has the original modes (answer.md drafts screening-question
+                            answers with no invented facts) plus 19 career-ops-parity modes (research, outreach, email,
+                            interview-prep, interview-plan, practice, debrief, redflags, negotiate, offer-review, followup,
+                            compare, training, project, titles, upskill, stories, add, reply), loaded by src/ai/playbook.js
 scripts/smoke.js            every template through print mode and PDF
 scripts/render-check.js     pagination and paint checks on generated documents
-scripts/assist-check.js     end-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server (no real
-                            provider is ever contacted): AI suggestions, job match/evaluate/tailor/cover-letter, the
-                            always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs
-                            board (drag/keyboard move persists a status change) and the command bar
+scripts/assist-check.js     end-to-end AI + jobs + career-suite flow in headless Chrome against a stub OpenAI-compatible
+                            server (no real provider is ever contacted, every network host stubbed): AI suggestions, job
+                            match/evaluate/tailor/cover-letter, the always-on ATS chip, the Review tab's 8 checks, the
+                            local job evaluation table, the jobs board (drag/keyboard move persists a status change),
+                            the command bar, the candidate profile and answer bank, the apply queue, the job workspace
+                            and Insights/Pipeline inbox
 test/*.test.js              node --test
 ```
 
@@ -170,9 +232,11 @@ The pages live in a shadow root whose stylesheet stack is `cv.css`, then the the
 
 **Importing a file.** `topbar.js` reads the chosen file with `src/io/extract.js`'s `extractFile(file)`, which sniffs the format from its bytes (falling back to the extension), picks a reader (DOCX unzips `word/document.xml`; PDF decodes its content streams; HTML, RTF and TXT/MD are read directly) and always returns `{ text, kind, warnings }` — it never throws. The plain text goes through `src/io/plaintext.js`'s `fromPlainText(text, lang)`, a pure heuristic converter (entry heads, dates, bullets, contact detection) that returns `{ content, notes }`, where `notes` flags low-confidence guesses by line. `src/ui/import-review.js` shows the converted Markdown next to a live preview rendered with `layoutPages` in the current document's layout; only clicking **Import** creates a new document. Pasted text follows the same `fromPlainText` path without the file-reading step.
 
-**AI.** Nothing runs until the user connects a provider in `src/ui/ai-dialog.js`, which calls `src/ai/providers.js`'s `createClient(connection)` and stores the connection with `src/ai/connections.js` (memory only, unless "Remember on this device" opts into `localStorage`). A feature (Suggest tab, rewrite, tailor, evaluate, cover letter) calls `src/ai/assist.js`'s `createAssist({ client, getState })`, which builds a prompt and JSON Schema with `src/ai/prompts.js`, sends it through the client, tolerantly parses the JSON reply (one retry on a bad shape), and validates every suggestion with `src/ai/guard.js`'s `validateSuggestions` — checking the target line hasn't changed, the replacement keeps the line's Recto Markdown kind, and flagging any number, URL or capitalized word not already in the CV as `new-facts` so it's excluded from "Accept all". `src/ui/assist-panel.js` renders the result as diff cards; nothing is written to the document except by an explicit accept.
+**AI.** Nothing runs until the user connects a provider in `src/ui/ai-dialog.js`, which calls `src/ai/providers.js`'s `createClient(connection)` and stores the connection with `src/ai/connections.js` (memory only, unless "Remember on this device" opts into `localStorage`). A feature (Suggest tab, rewrite, tailor, evaluate, cover letter) calls `src/ai/assist.js`'s `createAssist({ client, getState })`, which builds a prompt and JSON Schema with `src/ai/prompts.js`, sends it through the client, tolerantly parses the JSON reply (one retry on a bad shape), and validates every suggestion with `src/ai/guard.js`'s `validateSuggestions` — checking the target line hasn't changed, the replacement keeps the line's Recto Markdown kind, and flagging any number, URL or capitalized word not already in the CV as `new-facts` so it's excluded from "Accept all". `src/ui/assist-panel.js` renders the result as diff cards; nothing is written to the document except by an explicit accept. The career suite's 15 `brief` modes (job workspace tabs, Insights) and `practice`/`stories`/`addToCv`/`classifyReply` go through the same `createAssist`, with prompt text loaded per mode from `agent/modes/*.md` via `src/ai/playbook.js`, and every result still passes through `guard.js` or an equivalent citation check before it's shown.
 
-**Jobs.** `src/ui/job-panel.js` turns a pasted link or text into a job: a link goes through `src/jobs/fetch.js`'s `fetchJob`, which tries the Greenhouse/Lever/Ashby public APIs, then the local `/api/fetch` proxy (`serve.js`, local mode only), then an injected `webFetch`, and otherwise asks the user to paste the text. The resulting text is parsed by `src/jobs/parse.js`'s `parseJob` into requirements and keywords, scored against the open CV with `src/jobs/match.js`'s `matchCv` (no AI, ever) and checked with `src/jobs/legitimacy.js`'s `checkLegitimacy`. Saving a job stores it with `src/jobs/tracker.js`'s `createTracker` (`localStorage['recto:jobs']`), browsable in `src/ui/jobs-dialog.js`. AI job actions (Evaluate, Tailor CV, Draft cover letter) go through the same `createAssist` path as CV suggestions.
+**Jobs.** `src/ui/job-panel.js` turns a pasted link or text into a job: a link goes through `src/jobs/fetch.js`'s `fetchJob`, which tries the Greenhouse/Lever/Ashby public APIs, then the local `/api/fetch` proxy (`serve.js`, local mode only), then an injected `webFetch`, and otherwise asks the user to paste the text. The resulting text is parsed by `src/jobs/parse.js`'s `parseJob` into requirements and keywords, scored against the open CV with `src/jobs/match.js`'s `matchCv` (no AI, ever) and checked with `src/jobs/legitimacy.js`'s `checkLegitimacy`. Saving a job stores it with `src/jobs/tracker.js`'s `createTracker` (`localStorage['recto:jobs']`), browsable in `src/ui/jobs-board.js`. AI job actions (Evaluate, Tailor CV, Draft cover letter) go through the same `createAssist` path as CV suggestions.
+
+**Discover and the answer bank.** `src/ui/discover-view.js` scans `src/jobs/sources.js` adapters through `src/jobs/discover.js`'s `discover()`, filtering by `src/jobs/region.js`'s country matching, then locally evaluates and ranks results — no AI. `src/ui/pack-view.js` and `src/ui/apply-queue.js` build an application pack per job with `src/jobs/pack.js`'s `buildPack`, whose rule answers now cover every `src/profile.js` field; anything the rules don't cover is filled from `src/jobs/answers.js`'s answer bank (`findAnswer`) before falling back to an AI draft for free text only. Saving an answer (in a pack or the apply queue) calls `remember()` and writes it back to the profile with `saveProfile`, so it refills every other pack asking something similar. `src/ui/apply-queue.js` hands the prepared packs to `cli/autoapply.js` — through `serve.js`'s loopback-only `/api/apply` bridge when running locally, or as a downloaded bundle otherwise — which never submits anything unless the user opted into `--submit` and every guard passes.
 
 ## Print mode
 
@@ -193,7 +257,7 @@ The pages live in a shadow root whose stylesheet stack is `cv.css`, then the the
 | `npm test` (`node --test`) | Parser grammar and edge cases, dates, categories, layout normalization, migration, ops and section config, templates, content edits, pagination, theme CSS, contrast, every preflight rule and its fix, ATS text, JSON Resume round trip, paste import, remix, the store, the server, locale key parity, and the security scan |
 | `npm run smoke` | Every template renders the sample with zero preflight errors, within its target pages and with at least 8 % free on the last page, with no overflow and no paint-invariant violation. The PDF page count matches, and with `pdftotext` installed, the PDF text has the name, email and section titles in placement order |
 | `node scripts/render-check.js` | Pagination and the paint invariant on generated documents (long sections, multi-page, columns) |
-| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server: suggest, accept/reject, tailor, evaluate, cover letter, the match gauge, the tracker, the always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs board (drag/keyboard move persists) and the command bar. No real provider is ever contacted |
+| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs + career-suite flow in headless Chrome against a stub OpenAI-compatible server (every network host stubbed): suggest, accept/reject, tailor, evaluate, cover letter, the match gauge, the tracker, the always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs board (drag/keyboard move persists), the command bar, the candidate profile and answer bank, the apply queue (with and without the local bridge), the job workspace's tabs, and Insights with the Pipeline inbox. No real provider is ever contacted |
 
 CI runs `npm test` and `npm run smoke` on `ubuntu-latest` with Node 22, `fonts-liberation` and `poppler-utils`.
 
@@ -262,3 +326,12 @@ Run through this before a release, in Chrome at least and in Firefox and Safari 
 - [ ] Light and dark UI both meet WCAG AA contrast. The CV page stays paper-coloured.
 - [ ] `prefers-reduced-motion` turns animations off.
 - [ ] Below 900 px wide the panes become the tabs Write, Design and Check.
+
+**Career suite** (see [career-suite.md](career-suite.md))
+
+- [ ] Candidate profile: switching country changes the state list, currency and which checks/diversity fields show; the completeness meter and its links work; a saved answer appears in Saved answers with the right source badge.
+- [ ] Discover: Find boards returns results and Add works; a scan with a country set only returns matching postings; select results and **Apply to selected** opens the apply queue.
+- [ ] Apply queue: a shared question across two jobs is grouped once; answering it fills both packs; the run step's mode radio and the confirmation checkbox behave; with `node serve.js` running, the local bridge shows live per-job state; without it, the download and command are shown instead.
+- [ ] Job workspace: every tab renders; an AI tab without a provider shows **Connect AI providers**; pasting a rejection email classifies and offers **Move to Rejected**.
+- [ ] Compare (2–5 selected jobs) and Insights (funnel, rates, calibration, reposts, skill gaps, CSV export) render with no data and with data.
+- [ ] `node cli/recto.js discover --country US --out jobs.json` writes a jobs file that imports cleanly; `node cli/recto.js export samples/sample.cv.json -o out/cli.tex` produces a `.tex` file.

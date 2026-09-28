@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
-import { COLUMNS, groupJobs, stepStatus, daysSince, scoresOf, latestEvaluation } from '../src/ui/jobs-board.js'
+import { COLUMNS, groupJobs, stepStatus, daysSince, scoresOf, latestEvaluation, savedIds, canCompare } from '../src/ui/jobs-board.js'
 
 test('columns follow the tracker order, Skipped last', () => {
   assert.deepEqual(COLUMNS, ['saved', 'applied', 'interview', 'offer', 'rejected', 'no-response', 'skipped'])
@@ -64,6 +64,17 @@ test('latestEvaluation filters on source, newest first', () => {
   assert.equal(latestEvaluation({ evaluations: [a, b, { kind: 'local', score: 80 }] }), b)
   assert.equal(latestEvaluation({ evaluations: [{ kind: 'ai', score: 4 }] }), null)
   assert.equal(latestEvaluation({}), null)
+})
+
+test('savedIds keeps Saved jobs only, optionally within a selection, in list order', () => {
+  const jobs = [{ id: 'a', status: 'saved' }, { id: 'b', status: 'applied' }, { id: 'c', status: 'saved' }, { id: 'd', status: 'bogus' }]
+  assert.deepEqual(savedIds(jobs), ['a', 'c'])
+  assert.deepEqual(savedIds(jobs, new Set(['c', 'b', 'zzz'])), ['c'])
+  assert.deepEqual(savedIds(jobs, new Set()), [])
+})
+
+test('canCompare needs 2 to 5 jobs', () => {
+  assert.deepEqual([0, 1, 2, 5, 6].map(canCompare), [false, false, true, true, false])
 })
 
 test('every key the board uses has English text (en.json + parts)', () => {

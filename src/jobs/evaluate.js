@@ -4,6 +4,7 @@ import { parseJob, canonicalTokens, keywordsIn } from './parse.js'
 import { matchCv } from './match.js'
 import { checkLegitimacy } from './legitimacy.js'
 import { hasWorkAuth } from '../profile.js'
+import { authorizedFor } from './region.js'
 
 export const IMPORTANCE = ['critical', 'high', 'meaningful']
 export const MATCHES = ['strong', 'partial', 'missing', 'na']
@@ -25,7 +26,7 @@ const ARCHETYPE_RE = [
   ['engineering', /\bengineer|\bdeveloper|\bprogrammer|\bsre\b|\bdevops|\bsoftware|\barchitect|\bfront[- ]?end|\bback[- ]?end|\bfull[- ]?stack/],
   ['marketing', /\bmarketing|\bgrowth|\bseo\b|\bcontent|\bbrand/],
   ['sales', /\bsales|\baccount (?:executive|manager)|\bbusiness development|\bsdr\b|\bbdr\b/],
-  ['operations', /\boperations|\bops\b|\bsupport|\bcustomer success|\brecruit|\bpeople\b|\bhr\b|\bfinance|\baccountant|\bnurse|\badmin/]
+  ['operations', /\boperations|\bops\b|\bsupport|\bcustomer success|\brecruit|\bpeople\b|\bhr\b|\bfinance|\baccount(?:ant|ing)|\baudit|\btax\b|\bpayroll|\bbookkeep|\blegal\b|\bcounsel\b|\blawyer|\bparalegal|\bprocurement|\bnurse|\badmin/]
 ]
 const SENIORITY_RE = [
   ['executive', /\b(?:chief|c[etoif]o|vp|vice president|head of|founder)\b/],
@@ -50,7 +51,6 @@ const NEGATION = /\b(?:no|not|never|without|optional|optionally|occasional(?:ly)
 const NO_SPONSOR = /\b(?:unable|not able|cannot|can ?not|can['’]t|will not|won['’]t|do(?:es)? not|don['’]t|doesn['’]t)\b[^.\n]{0,30}\bsponsor|\bno (?:visa )?sponsorship\b|\bsponsorship (?:is )?not (?:available|offered|provided)\b|\bwithout (?:the need for )?(?:visa |current or future )?sponsorship\b/i
 const SPONSORS = /\b(?:visa )?sponsorship (?:is )?(?:available|offered|provided)\b|\bwe (?:will |can |do |happily )?sponsor\b|\bsponsor(?:s|ing)? (?:work )?visas?\b|\bvisa support\b/i
 const INJECTION = /\b(?:ignore|disregard|forget|override)\b[^.\n]{0,40}\b(?:previous|prior|above|earlier|all|any|your)\b[^.\n]{0,20}\b(?:instructions?|prompts?|rules|guidelines)\b|\b(?:as an?|if you are an?|note to (?:the )?|attention,?)\s*(?:ai|llm|language model|assistant|chatbot|gpt|screening (?:bot|tool))\b|\b(?:rate|score|rank|mark)\s+(?:this|the|every|all)\s+(?:candidate|applicant|resume|cv)s?\b[^.\n]{0,30}(?:\d+\s*\/\s*\d+|\d+%|highest|top|perfect|strong)|\bsystem prompt\b/i
-const COUNTRY_ALIASES = { us: ['us', 'usa', 'united states', 'america'], uk: ['uk', 'gb', 'united kingdom', 'england', 'britain'], gb: ['uk', 'gb', 'united kingdom'], de: ['de', 'germany', 'deutschland'], fr: ['fr', 'france'], ca: ['ca', 'canada'] }
 
 // Words too generic to decide a match on their own
 const FILLER = new Set(('year experience experienc work working with the and for our your you are will have has strong excellent good great ' +
@@ -106,18 +106,9 @@ function geoGate(location, text) {
   return { mismatch: !!quote, quote }
 }
 
-// ponytail: country match is a substring check on the posting's location plus a few aliases; a geocoder would be exact
-function authorizedFor(profile, location) {
-  const loc = ` ${str(location).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')} `
-  return (profile.authorizedIn ?? []).some(c => {
-    const k = String(c).toLowerCase()
-    return [k, ...(COUNTRY_ALIASES[k] ?? [])].some(a => loc.includes(` ${a} `))
-  })
-}
-
 function workAuthGate(profile, location, text) {
   if (!hasWorkAuth(profile)) return null
-  const needed = profile.needsSponsorship === true && !authorizedFor(profile, location)
+  const needed = profile.needsSponsorship === true && !authorizedFor(profile.authorizedIn, location)
   if (!needed) return { tier: 'not-needed', quote: '' }
   const no = firstLine(text, NO_SPONSOR)
   if (no) return { tier: 'no-sponsorship', quote: no }
