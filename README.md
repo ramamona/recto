@@ -13,6 +13,7 @@ Recto is a text-first CV builder. You write your CV in a small, strict Markdown 
 - **Preflight.** More than 30 checks for missing contact details, invalid emails and URLs, dates that are mixed, out of order or in the future, pages over target, text that is too small, low contrast, hidden link targets, emoji and invisible characters, and more. Many problems have a one-click **Fix**.
 - **ATS X-ray.** Numbers every block in PDF stream order and shows the exact text an ATS extracts, page by page, along with the fields it detects.
 - **ATS score.** An always-visible chip (`ATS 86 · B`) from eight weighted, deterministic checks — no job and no AI needed. Click it for every check, what was deducted and why, and a mock "what the ATS sees" form. Paste a job description for a local, career-ops-style evaluation: role summary, a two-pass requirement table with CV evidence, gates (liveness, geo-mismatch, work authorization, deal-breakers) and a 1–5 score. A **jobs board** (Saved · Applied · Interview · Offer · Rejected · No response) tracks it with drag-and-drop and status history. See [docs/assist.md](docs/assist.md).
+- **Discover & apply.** Scan Greenhouse, Lever and Ashby company boards and the Remotive and Arbeitnow feeds for jobs that fit your profile, ranked by a local score. Build an application pack per job (tailored CV, cover letter, drafted answers), and optionally let `recto autoapply` fill the form in a visible Chrome. It stops before Submit unless you opt in. See [docs/discover-apply.md](docs/discover-apply.md).
 - **Command bar.** `Cmd/Ctrl+K` opens a searchable list of every AI and app action, and jumps to any section.
 - **Templates.** 12 built-in templates (classic, modern, minimal, compact, timeline, executive, academic, bold, elegant, tech, creative, swiss). The gallery previews each one with *your* content, and **Remix** suggests a new look.
 - **Import an existing CV.** Upload a PDF, Word (`.docx`), HTML, RTF or plain text file — or paste the text of an old CV — and Recto converts it to Recto Markdown, with a review screen to check and edit the result (and a live preview) before it becomes a document.
@@ -66,7 +67,7 @@ Recto's agent playbook lives in [`agent/`](agent) as plain Markdown and powers b
 
 ## Privacy
 
-Recto has no accounts, no backend, no analytics and no telemetry. Your CV lives in your browser's `localStorage`, uploaded fonts live in IndexedDB, and copies exist only in files you save. AI is off by default: nothing leaves your machine until you connect a provider and confirm what gets sent, and only your chosen provider ever sees your CV. The app never submits applications or sends messages on your behalf. A strict Content-Security-Policy limits requests to your own origin plus, only once you've connected a provider, that provider's endpoint (HTTPS, or `localhost`/`127.0.0.1` for a local model server); custom CSS still cannot load a remote `url(https://…)`. A hosted instance serves static files and never receives your data.
+Recto has no accounts, no backend, no analytics and no telemetry. Your CV lives in your browser's `localStorage`, uploaded fonts live in IndexedDB, and copies exist only in files you save. AI is off by default: nothing leaves your machine until you connect a provider and confirm what gets sent, and only your chosen provider ever sees your CV. The app never submits applications or sends messages on your behalf; only the `recto autoapply` command you run fills forms, and it stops before Submit unless you pass `--submit`. A strict Content-Security-Policy limits requests to your own origin plus, only once you've connected a provider, that provider's endpoint (HTTPS, or `localhost`/`127.0.0.1` for a local model server); custom CSS still cannot load a remote `url(https://…)`. A hosted instance serves static files and never receives your data.
 
 ## Browser support
 
@@ -82,6 +83,7 @@ Page breaks come from real font metrics. The built-in font stacks end in metric-
 - [Self-hosting](docs/self-hosting.md)
 - [CLI](docs/cli.md)
 - [AI & jobs assist](docs/assist.md)
+- [Discover & apply](docs/discover-apply.md)
 - [The Recto agent (AI CV assistant for the app and AI CLIs)](docs/agent.md)
 - [Architecture and manual QA checklist](docs/architecture.md)
 

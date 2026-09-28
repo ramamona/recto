@@ -68,6 +68,11 @@ export function buildActions(store, ctx) {
     jobAction('ai.coverLetter', t('cmd.ai.coverLetter'), ctx, store),
     { id: 'app.templates', group: 'app', label: t('cmd.app.templates'), available: () => typeof ctx.topbar?.showTemplates === 'function', run: () => ctx.topbar.showTemplates() },
     { id: 'app.jobsBoard', group: 'app', label: t('cmd.app.jobsBoard'), available: () => typeof ctx.openJobsDialog === 'function', run: () => ctx.openJobsDialog() },
+    { id: 'app.discover', group: 'app', label: t('cmd.app.discover'), available: () => typeof ctx.openDiscover === 'function', run: () => ctx.openDiscover() },
+    {
+      id: 'app.prepare', group: 'app', label: t('cmd.app.prepare'),
+      available: () => typeof ctx.openPack === 'function' && !!store.state.activeJob?.id, run: () => ctx.openPack(store.state.activeJob.id),
+    },
     { id: 'app.exportPdf', group: 'app', label: t('cmd.app.exportPdf'), available: () => typeof ctx.topbar?.print === 'function', run: () => ctx.topbar.print() },
     { id: 'app.exportTxt', group: 'app', label: t('cmd.app.exportTxt'), available: () => typeof ctx.topbar?.exportTxt === 'function', run: () => ctx.topbar.exportTxt() },
     { id: 'app.exportJsonResume', group: 'app', label: t('cmd.app.exportJsonResume'), available: () => typeof ctx.topbar?.exportJsonResume === 'function', run: () => ctx.topbar.exportJsonResume() },

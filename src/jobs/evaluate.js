@@ -207,10 +207,28 @@ export function capScore(score, gates) {
   if (gates.workAuth?.tier === 'no-sponsorship') caps.push('no-sponsorship')
   if (gates.liveness?.status === 'closed') caps.push('closed')
   if (gates.dealBreakers?.length) caps.push('deal-breaker')
+  if (gates.roleMismatch) caps.push('role-mismatch')
   let s = score
   if (caps.includes('no-sponsorship') || caps.includes('closed')) s = Math.min(s, 1.5)
   if (caps.includes('deal-breaker')) s = Math.min(s, 2)
+  if (caps.includes('role-mismatch')) s = Math.min(s, 2.5)
   return { score: round1(s), caps }
+}
+
+// Archetypes of the CV's own roles: the tagline (line after the name) and every ### entry title.
+function cvArchetypes(source) {
+  const lines = String(source).split('\n')
+  const titles = lines.filter(l => l.startsWith('### ')).map(l => l.slice(4).split('|')[0])
+  const name = lines.findIndex(l => l.startsWith('# '))
+  if (name >= 0 && lines[name + 1]) titles.push(lines[name + 1])
+  return new Set(titles.map(t => classify(t.toLowerCase(), ARCHETYPE_RE, 'other')).filter(a => a !== 'other'))
+}
+
+// A job in a field the CV never worked in (e.g. sales for an engineer) is capped whatever its keyword overlap.
+function roleMismatch(jobArchetype, source) {
+  if (jobArchetype === 'other') return false
+  const mine = cvArchetypes(source)
+  return mine.size > 0 && !mine.has(jobArchetype)
 }
 
 function coverage(rows, match) {
@@ -260,7 +278,9 @@ export function evaluateJob({ source = '', doc, layout, issues } = {}, job, { pr
   const groups = cvGroups(source)
   const all = jdRequirements(p, text).map(r => matchRow(r, groups))
   const match = matchCv({ doc, source, layout, issues }, p)
-  const { score, caps } = capScore(1 + 4 * coverage(all, match), gates)
+  // requirement coverage alone over-credits generic lines ("strong communication"); blend in the keyword match
+  const fit = 0.6 * coverage(all, match) + 0.4 * (match?.score ?? 0) / 100
+  const { score, caps } = capScore(1 + 4 * fit, { ...gates, roleMismatch: roleMismatch(role.archetype, source) })
   return {
     source: 'local', role, gates, ...budget(all), score, recommendation: recommendationFor(score), caps,
     legitimacy: legitimacy({ ...j, title, location }, text, { saved, now, parsed: p }), match

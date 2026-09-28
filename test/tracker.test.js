@@ -111,3 +111,22 @@ test('staleApplied: applied with no status change for 21 days (default)', () => 
   assert.equal(staleApplied({ status: 'applied', updatedAt: at }, new Date('2026-10-01')), true, 'falls back to updatedAt')
   assert.equal(staleApplied(null, new Date()), false)
 })
+
+test('discover fields and the application pack survive save, reload, export and import; junk is dropped', () => {
+  const s = memStorage()
+  const t = createTracker(s, { now })
+  const pack = { jobId: 'remotive:remotive:1', cvDocId: 'doc1', fields: [{ label: 'Email', value: 'a@b.c' }], answers: [{ question: 'Why?', answer: '', source: 'unanswered' }], pdfName: 'A-CV.pdf' }
+  const questions = [{ label: 'Resume', type: 'input_file', required: true }]
+  const a = t.save({ id: 'remotive:remotive:1', source: 'remotive', title: 'x', applyUrl: 'https://x.example/apply', board: 'remotive', questions, pack })
+  assert.deepEqual([a.source, a.applyUrl, a.board, a.questions, a.pack], ['remotive', 'https://x.example/apply', 'remotive', questions, pack])
+  assert.equal(t.save({ title: 'y', source: 'arbeitnow' }).source, 'arbeitnow')
+  assert.deepEqual(createTracker(s, { now }).get(a.id).pack, pack, 'kept in storage')
+  const u = createTracker(memStorage(), { now })
+  u.import(t.export())
+  assert.deepEqual(u.get(a.id), t.get(a.id))
+  const junk = t.save({ title: 'z', applyUrl: 'javascript:alert(1)', board: 5, questions: [null, { type: 'x' }, 'q'], pack: { answers: 'no' } })
+  assert.deepEqual(['applyUrl', 'board', 'questions', 'pack'].filter(k => k in junk), [])
+  const many = t.save({ title: 'm', questions: Array.from({ length: 150 }, (_, i) => ({ label: `Q${i}` })), pack: { ...pack, answers: [{ question: 'x'.repeat(300_000) }] } })
+  assert.equal(many.questions.length, 100)
+  assert.equal(many.pack, undefined, 'oversized pack dropped')
+})

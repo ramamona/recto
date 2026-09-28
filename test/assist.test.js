@@ -193,3 +193,37 @@ test('the playbook loads once per assist and reaches the prompt; a failed load f
   await createAssist({ client: c2, getState: () => state, loadPlaybook: () => { throw new Error('404') } }).suggest()
   assert.ok(c2.calls[0].system.startsWith('You are a careful CV editor'))
 })
+
+const QS = [{ label: 'Why do you want to work at Globex?' }, { label: 'Describe your mentoring experience.' }, { label: 'Anything else?' }]
+
+test('answer drafts free-text answers aligned to the questions, via the answer schema', async () => {
+  const client = fakeClient(JSON.stringify({ answers: [
+    { n: 2, answer: 'I mentored engineers on the team.' },
+    { n: 1, answer: 'Globex builds the kind of platform I work on.' },
+  ] }))
+  const { answers } = await assist(client).answer(JOB, QS, { profile: { city: 'Berlin' } })
+  assert.equal(answers.length, 3)
+  assert.deepEqual(answers.map(a => a.status), ['ok', 'ok', 'empty'])
+  assert.equal(answers[0].answer, 'Globex builds the kind of platform I work on.')
+  assert.equal(answers[2].answer, '')
+  assert.equal(client.calls[0].json.title, 'answers')
+  assert.match(client.calls[0].messages[0].content, /Berlin/)
+})
+
+test('answer never passes invented facts: new names or numbers are flagged, needsInput kept', async () => {
+  const client = fakeClient(JSON.stringify({ answers: [
+    { n: 1, answer: 'I led 47 engineers at Initech.' },
+    { n: 2, answer: '', needsInput: 'How many people did you mentor?' },
+    { n: 3, answer: 'I live in Berlin and can start after my notice period.' },
+  ] }))
+  const { answers } = await assist(client).answer(JOB, QS, { profile: { city: 'Berlin' } })
+  assert.equal(answers[0].status, 'new-facts')
+  assert.deepEqual(answers[0].newFacts, ['47', 'Initech'])
+  assert.equal(answers[1].status, 'empty')
+  assert.equal(answers[1].needsInput, 'How many people did you mentor?')
+  assert.equal(answers[2].status, 'ok')
+})
+
+test('answer without a client throws no-client', async () => {
+  await assert.rejects(createAssist({ client: null, getState: () => state }).answer(JOB, QS), { code: 'no-client' })
+})

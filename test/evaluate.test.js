@@ -160,3 +160,14 @@ test('never throws on empty input', () => {
   assert.ok(r.score >= 1 && r.score <= 5)
   assert.equal(r.role.archetype, 'other')
 })
+
+test('a job in a field the CV never worked in is capped (role-mismatch)', () => {
+  const source = '# Jane\nSenior Software Engineer\njane@x.dev\n## Experience\n### Software Engineer | Acme | 2020 – Present\n- Built APIs in Go and TypeScript\n- Strong communication with stakeholders\n'
+  const job = { title: 'Account Executive', text: 'Account Executive\nRequirements\n- Strong communication\n- Work with stakeholders\n- Go-getter attitude' }
+  const e = evaluateJob({ source, doc: parse(source) }, job, { now: new Date('2026-09-28') })
+  assert.ok(e.caps.includes('role-mismatch'))
+  assert.ok(e.score <= 2.5)
+  assert.equal(e.recommendation, 'skip')
+  const eng = evaluateJob({ source, doc: parse(source) }, { title: 'Backend Engineer', text: 'Backend Engineer\nRequirements\n- Go\n- TypeScript' }, { now: new Date('2026-09-28') })
+  assert.ok(!eng.caps.includes('role-mismatch'))
+})

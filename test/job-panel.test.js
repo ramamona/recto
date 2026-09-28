@@ -81,6 +81,11 @@ test('evaluationRecord drops the bulky match estimate and keeps the report', () 
 test('profile form: lists split on commas and new lines, blanks become unset', () => {
   assert.deepEqual(splitList(' DE, US\nFR ,, '), ['DE', 'US', 'FR'])
   const p = toProfile({ authorizedIn: 'DE, FR', needsSponsorship: true, locations: 'Berlin', remote: 'hybrid', targetRoles: '', dealBreakers: 'crypto\ngambling', salaryMin: '', currency: ' ' })
-  assert.deepEqual(p, { authorizedIn: ['DE', 'FR'], needsSponsorship: true, locations: ['Berlin'], remote: 'hybrid', targetRoles: [], dealBreakers: ['crypto', 'gambling'] })
+  assert.deepEqual(p, {
+    authorizedIn: ['DE', 'FR'], needsSponsorship: true, locations: ['Berlin'], remote: 'hybrid', targetRoles: [], dealBreakers: ['crypto', 'gambling'],
+    firstName: '', lastName: '', email: '', phone: '', linkedin: '', github: '', website: '', city: '', country: '',
+    salaryExpectation: '', noticePeriod: '', willingToRelocate: null,
+    eeo: { gender: 'decline', race: 'decline', veteran: 'decline', disability: 'decline' }
+  })
   assert.equal(toProfile({ salaryMin: '65000', currency: 'EUR' }).salaryMin, 65000)
 })

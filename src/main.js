@@ -136,6 +136,8 @@ async function appMode() {
   ctx.openPanel = panel => store.setUi({ panel, tab: panelTab(panel) })
   ctx.openAiDialog = opts => aiDialog.openAiDialog(store, ctx, opts)
   ctx.openJobsDialog = (...a) => import('./ui/jobs-board.js').then(m => m.openJobsBoard(store, ctx, ...a))
+  ctx.openDiscover = () => import('./ui/discover-view.js').then(m => m.openDiscover(store, ctx))
+  ctx.openPack = (jobId, opts) => import('./ui/pack-view.js').then(m => m.openPack(store, ctx, jobId, opts))
   window.recto = { store, ctx } // console access for debugging
 
   const lastId = store.state.docs[0]?.id

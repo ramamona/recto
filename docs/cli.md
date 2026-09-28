@@ -10,6 +10,7 @@ node cli/recto.js evaluate <in> --job <file.txt|url> [--profile <profile.json>] 
 node cli/recto.js tips <in> [--json]
 node cli/recto.js apply <in> --edits <edits.json> [--allow-new-facts] [-o <out>] [--json]
 node cli/recto.js profile [--set key=value ...] [--file <profile.json>] [--json]
+node cli/recto.js autoapply --jobs <jobs.json> --cv <in> [--profile <profile.json>] [--min-score 4] [--max 5] [--submit] [--dry-run] [--log <applications.jsonl>]
 node cli/recto.js --help
 ```
 
@@ -103,6 +104,38 @@ Reads or updates the candidate profile in `./profile.json` (or `--file`): `autho
 node cli/recto.js profile --set locations="Berlin, Remote" --set needsSponsorship=true --set dealBreakers="on-call"
 node cli/recto.js profile --json
 ```
+
+## `autoapply`
+
+Fills in the application forms of your saved jobs, in a Chrome window you can see. By default it stops before Submit so you review and submit yourself. Many job sites forbid automated submissions; you are responsible for using it. See [discover-apply.md](discover-apply.md).
+
+```sh
+node cli/recto.js autoapply --jobs jobs.json --cv cv.cv.json --dry-run    # print the plan, open nothing
+node cli/recto.js autoapply --jobs jobs.json --cv cv.cv.json              # fill, then you review and submit
+node cli/recto.js autoapply --jobs jobs.json --cv cv.cv.json --submit --min-score 4 --max 5
+```
+
+`--jobs` is the jobs board export from the app. Only jobs with status `saved` are processed. `--profile` (default `./profile.json` when present) supplies the applicant fields. Name, email, phone and links you leave empty are taken from the CV header. For each job, autoapply:
+
+1. Exports the CV to `out/applications/<job id>/<First>-<Last>-CV.pdf`, or to the pack's `pdfName` when the job has an application pack.
+2. Opens the job's application page in a visible Chrome with its own persistent profile in `~/.recto/chrome`. You can sign in there yourself once, and it stays signed in. Lever and Ashby posting links go to their `/apply` and `/application` pages.
+3. Detects Greenhouse, Lever or Ashby from the URL and the page, and fills fields by their labels. Answers come from the job's application pack first (including drafted answers to custom questions), then from your profile: name, email, phone, LinkedIn/GitHub/website, location, work authorization (only when the question or the job location names a country in `authorizedIn`; codes and names match each other, so `US` matches "United States"), sponsorship, relocation, salary, notice period, and "How did you hear" (Company careers page). Equal-opportunity questions (gender, race, veteran, disability) are answered with the decline option. Password fields are never filled.
+4. Attaches the PDF to the resume field and outlines every required field still empty in red.
+
+Then, by default, it prints "Review and submit in the browser, then press Enter", waits, and asks "Did you submit? [y/N]". If you answer yes, the job is marked applied.
+
+With `--submit` it clicks Submit itself, but only if all of these hold:
+
+- the job's score (the latest evaluation stored on the job, or a local evaluation of its text) is at least `--min-score` (default 4);
+- fewer than `--max` applications (default 5) were submitted today, counted from the log;
+- no required field is left empty;
+- the page has no CAPTCHA (reCAPTCHA, hCaptcha, Turnstile) and no login or account-creation wall.
+
+After clicking Submit, it waits for a confirmation: the page moves on, or shows "thank you" or "application received". It then saves a screenshot to `out/applications/<job id>.png` and marks the job applied. If any condition fails, or no confirmation appears, it falls back to stopping before Submit for that job. Autoapply never solves or bypasses a CAPTCHA, never signs in and never creates an account. Those steps are always left to you.
+
+Every attempt is appended to the log (`--log`, default `applications.jsonl`) as one JSON line: `{ at, jobId, company, title, url, mode, result, reason }`. `mode` is `review` or `submit`. `result` is `submitted`, `filled`, `skipped` (for example, no application URL) or `blocked` (a `--submit` guard failed; `reason` lists which ones). Applied jobs are written back to the jobs file with status `applied` and a status-history entry. Import that file into the app and the cards move on the board.
+
+`--dry-run` opens no browser and writes nothing. For each job, it prints the application URL, the fields and answers it would fill, and the `--submit` decision based on the score, the daily cap and any unanswered required pack answers. CAPTCHA, login and form fields can only be checked in the browser. The prompts read from stdin, so piped or closed stdin answers "no".
 
 ## Exit codes
 

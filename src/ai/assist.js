@@ -84,10 +84,37 @@ export function createAssist ({ client, getState, loadPlaybook = defaultLoadPlay
       const subject = str(j.subject).trim()
       return { ...(subject ? { subject } : {}), paragraphs: strings(j.paragraphs) }
     },
+    /**
+     * Drafts free-text answers, aligned to `questions` ({ label }[]). An answer naming a fact (name, number, URL) that is not
+     * in the CV, profile, job or question is `new-facts`; the caller must not use it.
+     */
+    async answer (job, questions = [], { profile } = {}) {
+      const { content } = getState()
+      const j = await ask(b => P.answerPrompt({ source: content, job, profile, questions }, b), j => isObj(j) && Array.isArray(j.answers))
+      const byN = new Map(j.answers.filter(isObj).map(a => [Number(a.n), a]))
+      const known = [content, job?.title, job?.company, job?.location, job?.text, JSON.stringify(profile ?? {}), ...questions.map(q => q?.label), 'I']
+        .map(v => str(v))
+      return {
+        answers: questions.map((q, i) => {
+          const a = byN.get(i + 1) ?? {}
+          const answer = str(a.answer).trim()
+          const needsInput = str(a.needsInput).trim()
+          const newFacts = answer ? newFactsIn(answer, known) : []
+          const status = !answer ? 'empty' : newFacts.length ? 'new-facts' : 'ok'
+          return { answer, status, newFacts, ...(needsInput ? { needsInput } : {}) }
+        }),
+      }
+    },
     async extractJob (text) {
       return normalizeJob(await ask(b => P.extractJobPrompt({ text }, b), isObj))
     },
   }
+}
+
+// The suggestion guard on a one-line stand-in source: "x. " keeps the text a paragraph and its first word sentence-initial.
+function newFactsIn (text, known) {
+  const [r] = validateSuggestions('x. y', null, [{ line: 1, expect: 'x. y', replacement: 'x. ' + text.replace(/\s+/g, ' ') }], { extraFacts: known })
+  return r.newFacts
 }
 
 const skillsLines = doc => line => (doc?.sections ?? []).some(s => categorize(s.title) === 'skills' && line >= s.line && line <= s.endLine)

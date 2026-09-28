@@ -7,7 +7,7 @@ const FILES = {
   grammar: 'agent/grammar.md',
 }
 const MODES = {
-  review: 'review', rewrite: 'rewrite', tailor: 'tailor', evaluate: 'evaluate', coverLetter: 'cover-letter', extractJob: 'extract-job',
+  review: 'review', rewrite: 'rewrite', tailor: 'tailor', evaluate: 'evaluate', coverLetter: 'cover-letter', extractJob: 'extract-job', answer: 'answer',
 }
 
 async function defaultRead (path) {

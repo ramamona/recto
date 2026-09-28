@@ -68,7 +68,15 @@ src/jobs/                   pure
                                 requirement table (importance from the JD alone, then matched against the CV with quoted evidence),
                                 a 1–5 score capped by the gates, recommendation, and legitimacy incl. a prompt-injection check
   tracker.js                   createTracker(storage): jobs in localStorage['recto:jobs'], CRUD, evaluations (addEvaluation), export/import
-                                JSON; STATUSES incl. 'no-response', statusHistory per job, staleApplied(job, now, days=21)
+                                JSON; STATUSES incl. 'no-response', statusHistory per job, staleApplied(job, now, days=21); keeps a job's
+                                applyUrl, board, questions and application pack
+  sources.js                   job-source adapters (Greenhouse, Lever, Ashby boards; Remotive, Arbeitnow feeds) → normalized
+                                Postings; Greenhouse form questions (fetchDetails); the company list in localStorage['recto:companies']
+  discover.js                  discover({ companies, settings, profile, cv, tracker, fetch }): scan with concurrency 6, filter by
+                                roles/location/remote/age/deal-breakers, drop tracked jobs, evaluate locally, rank; scan settings
+                                in localStorage['recto:discover']
+  pack.js                      buildPack({ job, cv, profile, assist }): the application pack (standard fields, rule answers from
+                                profile/CV, AI drafts for free text only); ruleAnswer/authorizedFor shared with cli/autoapply.js
   fetch.js                     fetchJob(url): Greenhouse/Lever/Ashby public APIs, then the local /api/fetch proxy (serve.js), then an injected webFetch, else rejects with { code: 'needs-paste' }
 
 src/profile.js               pure; localStorage['recto:profile']: loadProfile/saveProfile/normalizeProfile — authorized
@@ -102,16 +110,23 @@ src/ui/
                               local evaluateJob report (rendered as soon as a job is parsed, no AI needed), "Refine with
                               AI", and the AI actions (Evaluate, Tailor CV, Draft cover letter, Save to tracker); also
                               registers ctx.openProfileDialog
+  discover-view.js            openDiscover(store, ctx): full-screen Discover view — scan settings and company list, Scan with
+                              progress, filter chips, ranked cards with Save · Skip · Prepare application
+  pack-view.js                openPack(store, ctx, jobId): application pack dialog (tailored CV, cover letter, questions, fields,
+                              Open application page, Mark applied, the autoapply command); the pack is stored on the tracker job
   profile-dialog.js           openProfileDialog(ctx): candidate profile form over src/profile.js
   command-bar.js              mountCommandBar(store, ctx): Cmd/Ctrl-K palette over AI actions, app actions and "go to
                               section", fuzzy-filtered, recent commands first; an action whose ctx function isn't
                               wired up yet is left out of the list rather than shown disabled
 
-styles/                     app.css, editor.css, canvas.css, inspector.css, assist.css, board.css, command.css (app UI); cv.css (the pages)
+styles/                     app.css, editor.css, canvas.css, inspector.css, assist.css, board.css, command.css, discover.css (app UI; discover.css also styles the pack); cv.css (the pages)
 locales/en.json             UI strings (flat keys)
 templates/                  index.json + one JSON file per template
 samples/sample.cv.json      first-run document and smoke-test input
 cli/recto.js  cli/chrome.js CLI; minimal DevTools-protocol driver over --remote-debugging-pipe
+cli/autoapply.js            `recto autoapply`: fills saved jobs' application forms in a visible Chrome, stops before Submit
+                            unless --submit and every guard passes (score, daily cap, required fields, CAPTCHA/login/account wall)
+agent/                      the agent playbook; agent/modes/answer.md drafts screening-question answers (no invented facts)
 scripts/smoke.js            every template through print mode and PDF
 scripts/render-check.js     pagination and paint checks on generated documents
 scripts/assist-check.js     end-to-end AI + jobs flow in headless Chrome against a stub OpenAI-compatible server (no real

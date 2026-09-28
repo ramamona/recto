@@ -96,7 +96,7 @@ import { loadPlaybook } from '../src/ai/playbook.js'
 
 const PLAYBOOK = {
   core: 'CORE-TEXT', writing: 'WRITING-TEXT', grammar: 'GRAMMAR-TEXT',
-  modes: { review: 'MODE-review', rewrite: 'MODE-rewrite', tailor: 'MODE-tailor', evaluate: 'MODE-evaluate', coverLetter: 'MODE-coverLetter', extractJob: 'MODE-extractJob' },
+  modes: { review: 'MODE-review', rewrite: 'MODE-rewrite', tailor: 'MODE-tailor', evaluate: 'MODE-evaluate', coverLetter: 'MODE-coverLetter', extractJob: 'MODE-extractJob', answer: 'MODE-answer' },
 }
 const withPlaybook = {
   review: ['suggestPrompt', builders.suggestPrompt, true],
@@ -105,6 +105,7 @@ const withPlaybook = {
   evaluate: ['evaluatePrompt', builders.evaluatePrompt, false],
   coverLetter: ['coverLetterPrompt', builders.coverLetterPrompt, true],
   extractJob: ['extractJobPrompt', { text: 'Go job' }, false],
+  answer: ['answerPrompt', { source: SOURCE, job: JOB, questions: [{ label: 'Why us?' }] }, false],
 }
 
 test('with a playbook: core, writing (writing modes only), grammar, the mode file, then the rule', () => {
@@ -131,7 +132,7 @@ test('loadPlaybook reads every file through the injected reader; a missing file 
   const dir = await mkdtemp(join(tmpdir(), 'recto-pb-'))
   try {
     await mkdir(join(dir, 'agent/modes'), { recursive: true })
-    const files = ['recto', 'writing', 'grammar', 'modes/review', 'modes/rewrite', 'modes/tailor', 'modes/evaluate', 'modes/cover-letter', 'modes/extract-job']
+    const files = ['recto', 'writing', 'grammar', 'modes/review', 'modes/rewrite', 'modes/tailor', 'modes/evaluate', 'modes/cover-letter', 'modes/extract-job', 'modes/answer']
     for (const f of files) await writeFile(join(dir, `agent/${f}.md`), `# ${f}\n`)
     const { readFile } = await import('node:fs/promises')
     const read = p => readFile(join(dir, p), 'utf8')
@@ -139,6 +140,7 @@ test('loadPlaybook reads every file through the injected reader; a missing file 
     assert.equal(pb.core, '# recto')
     assert.equal(pb.modes.coverLetter, '# modes/cover-letter')
     assert.equal(pb.modes.extractJob, '# modes/extract-job')
+    assert.equal(pb.modes.answer, '# modes/answer')
     await rm(join(dir, 'agent/modes/tailor.md'))
     await assert.rejects(loadPlaybook({ read }))
   } finally { await rm(dir, { recursive: true, force: true }) }
@@ -149,4 +151,25 @@ test('the real playbook files load and go into prompts', { skip: !existsSync(new
   for (const v of [pb.core, pb.writing, pb.grammar, ...Object.values(pb.modes)]) assert.ok(v.length > 0)
   const s = P.tailorPrompt(builders.tailorPrompt, pb).system
   assert.ok(s.includes(pb.core) && s.includes(pb.modes.tailor) && s.includes(P.NO_FABRICATION))
+})
+
+test('answerPrompt: numbered questions, CV, job and profile facts; rule and untrusted-data note; answers schema', () => {
+  const p = P.answerPrompt({
+    source: SOURCE, job: JOB,
+    questions: [{ label: 'Why do you want to join Globex?' }, { label: 'Describe a project you are proud of.' }],
+    profile: { city: 'Berlin', noticePeriod: '3 months', eeo: { gender: 'Female' }, email: 'jo@doe.dev' }
+  })
+  const t = text(p)
+  assert.match(t, /1\. Why do you want to join Globex\?/)
+  assert.match(t, /2\. Describe a project you are proud of\./)
+  assert.ok(t.includes('6│ - Led the billing rewrite'))
+  assert.ok(t.includes('We need Go and Kubernetes.'))
+  assert.ok(t.includes('3 months') && t.includes('Berlin'))
+  assert.ok(!t.includes('Female'), 'EEO answers never go to the model')
+  assert.ok(t.includes(P.NO_FABRICATION))
+  assert.match(p.system, /untrusted/)
+  const item = p.json.properties.answers.items
+  assert.deepEqual(item.required, ['n', 'answer'])
+  assert.ok(item.properties.needsInput)
+  assert.ok(!P.answerPrompt({ source: SOURCE, job: JOB, questions: [] }).system.includes(P.FALLBACK))
 })

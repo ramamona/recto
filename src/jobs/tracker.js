@@ -3,11 +3,16 @@
 export const JOBS_KEY = 'recto:jobs'
 export const STATUSES = ['saved', 'applied', 'interview', 'offer', 'rejected', 'no-response', 'skipped']
 export const STALE_DAYS = 21
-const SOURCES = ['greenhouse', 'lever', 'ashby', 'url', 'paste']
+const SOURCES = ['greenhouse', 'lever', 'ashby', 'remotive', 'arbeitnow', 'url', 'paste']
+const MAX_QUESTIONS = 100
+const MAX_PACK = 200_000 // chars of JSON: answers are short; a pack past this is junk
 const FORMAT = 'recto-jobs'
 
 const str = v => typeof v === 'string' ? v : ''
 const isJob = j => j && typeof j === 'object' && !Array.isArray(j)
+// Application pack (src/jobs/pack.js) and form questions are kept as given when well-formed; junk or oversized is dropped
+const packOf = v => isJob(v) && Array.isArray(v.answers) && Array.isArray(v.fields) && JSON.stringify(v).length <= MAX_PACK ? v : null
+const questionsOf = v => Array.isArray(v) ? v.filter(q => isJob(q) && str(q.label)).slice(0, MAX_QUESTIONS) : []
 const newId = () => globalThis.crypto?.randomUUID?.() ?? `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 // localStorage itself can throw on access (blocked site data); fall back to memory
@@ -47,6 +52,12 @@ function clean(j, stamp) {
   }
   out.statusHistory = historyOf(j, out.status, out.updatedAt)
   if (str(j.postedAt)) out.postedAt = j.postedAt
+  if (/^https?:\/\//i.test(str(j.applyUrl))) out.applyUrl = j.applyUrl
+  if (str(j.board)) out.board = j.board
+  const questions = questionsOf(j.questions)
+  if (questions.length) out.questions = questions
+  const pack = packOf(j.pack)
+  if (pack) out.pack = pack
   return out
 }
 

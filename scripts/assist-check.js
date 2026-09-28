@@ -17,6 +17,10 @@
 //   .job-reqs tbody tr              Job tab: local (no-AI) two-pass requirement table, renders after Analyze
 //   .board[open], [data-job=ID]     Jobs board dialog and its cards (draggable, also movable with arrow keys)
 //   .cmd-bar[open], .cmd-bar__input, .cmd-bar__item   Command bar (Cmd/Ctrl-K), its filter box and result rows
+//   [data-action="discover"], .discover[open]          Top bar Discover button and the Discover view
+//   [data-action="discover-scan"], .dc-card[data-source][data-posting]   Scan button and result cards
+//   [data-action="discover-save|discover-prepare"]     per-card actions; .dc-attrib a = "via Remotive" link
+//   .pack[open], .pack-cli, [data-action="pack-applied"]  Application pack view, its autoapply hint, Mark applied
 
 import http from 'node:http'
 import { createServer, listen } from '../serve.js'
@@ -298,6 +302,79 @@ async function commandBarFlow(page, problems) {
   await click(page, '[data-action="board-close"]').catch(() => {})
 }
 
+// discover-apply spec §1.1–1.2, §5: Discover (stubbed sources) → Save → Prepare application → Mark applied
+// moves the card to Applied on the board. The five public sources are answered by a window.fetch override,
+// so no third-party host is ever contacted.
+async function discoverFlow(page, problems) {
+  await page.evaluate(`(() => {
+    const day = 864e5
+    const recent = new Date(Date.now() - 2 * day).toISOString()
+    const json = body => Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }))
+    const gh = { id: 101, title: 'Backend Engineer', absolute_url: 'https://boards.greenhouse.io/acme/jobs/101', location: { name: 'Remote' },
+      updated_at: recent, first_published: recent, company_name: 'Acme',
+      content: '&lt;p&gt;We need a Backend Engineer with JavaScript, Node.js and PostgreSQL experience. Remote.&lt;/p&gt;' }
+    const questions = [
+      { label: 'First Name', required: true, fields: [{ name: 'first_name', type: 'input_text', values: [] }] },
+      { label: 'Will you now or in the future require visa sponsorship?', required: true,
+        fields: [{ name: 'question_2', type: 'multi_value_single_select', values: [{ label: 'Yes', value: 1 }, { label: 'No', value: 0 }] }] },
+      { label: 'Why do you want to work at Acme?', required: false, fields: [{ name: 'question_3', type: 'textarea', values: [] }] },
+    ]
+    const remotive = { id: 555, url: 'https://remotive.com/remote-jobs/software-dev/frontend-engineer-555', title: 'Frontend Engineer',
+      company_name: 'Remo Co', category: 'Software Development', job_type: 'full_time', publication_date: recent,
+      candidate_required_location: 'Worldwide', salary: '', description: '<p>Frontend Engineer, JavaScript and CSS. Fully remote.</p>' }
+    const real = window.fetch.bind(window)
+    window.__discoverHosts = []
+    window.fetch = (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input.url, location.href)
+      if (url.origin === location.origin) return real(input, init)
+      window.__discoverHosts.push(url.host)
+      if (url.host === 'boards-api.greenhouse.io') return json(/\\/jobs\\/101/.test(url.pathname) ? { ...gh, questions } : { jobs: [gh], meta: { total: 1 } })
+      if (url.host === 'remotive.com') return json({ 'job-count': 1, jobs: [remotive] })
+      if (url.host === 'api.lever.co') return json([])
+      if (url.host === 'api.ashbyhq.com') return json({ jobs: [] })
+      if (url.host === 'www.arbeitnow.com') return json({ data: [], links: {}, meta: {} })
+      return Promise.reject(new TypeError('assist-check: unexpected host ' + url.host))
+    }
+    localStorage.setItem('recto:companies', JSON.stringify([{ source: 'greenhouse', board: 'acme', name: 'Acme' }]))
+    localStorage.setItem('recto:discover', JSON.stringify({ roles: [], locations: [], remote: 'any', maxAgeDays: 30, minScore: 0,
+      feeds: { remotive: { enabled: true, query: 'engineer' }, arbeitnow: { enabled: false } } }))
+  })()`, { awaitPromise: false })
+  await waitUntil(page, `document.querySelector('[data-action="discover"]')`, { what: 'Discover button' })
+  await click(page, '[data-action="discover"]')
+  await waitUntil(page, `document.querySelector('.discover[open] [data-action="discover-scan"]')`, { what: 'Discover view opens' })
+  await click(page, '[data-action="discover-scan"]')
+  await waitUntil(page, `document.querySelector('.dc-card[data-source="greenhouse"]') && document.querySelector('.dc-card[data-source="remotive"]')`, { what: 'scan results (greenhouse + remotive cards)' })
+  const via = await page.evaluate(`document.querySelector('.dc-card[data-source="remotive"] .dc-attrib a')?.getAttribute('href') ?? ''`, { awaitPromise: false })
+  if (!/^https:\/\/remotive\.com\//.test(via)) problems.push(`Remotive card lacks its "via Remotive" link back (got ${JSON.stringify(via)})`)
+  const id = await page.evaluate(`document.querySelector('.dc-card[data-source="greenhouse"]').dataset.posting`, { awaitPromise: false })
+  const card = `.dc-card[data-posting="${id}"]`
+  await click(page, `${card} [data-action="discover-save"]`)
+  await waitUntil(page, `window.recto.ctx.tracker.get(${JSON.stringify(id)})?.status === 'saved'`, { what: 'Save puts the posting in the tracker' })
+  await click(page, `.dc-card[data-posting="${id}"] [data-action="discover-prepare"]`)
+  await waitUntil(page, `document.querySelector('.pack[open] .pack-cli')`, { what: 'application pack view opens' })
+  const cli = await page.evaluate(`document.querySelector('.pack[open] .pack-cli').textContent`, { awaitPromise: false })
+  if (!cli.startsWith('recto autoapply --jobs ') || !cli.includes(id.replace(/:/g, '-')) || !cli.includes('.cv.json')) problems.push(`pack CLI hint is not this job's autoapply command: ${JSON.stringify(cli)}`)
+  await waitUntil(page, `document.querySelectorAll('.pack[open] .pack-q').length > 0`, { what: 'pack questions render' })
+  await click(page, '.pack[open] [data-action="pack-applied"]')
+  await waitUntil(page, `window.recto.ctx.tracker.get(${JSON.stringify(id)})?.status === 'applied'`, { what: 'Mark applied updates the tracker' })
+  // The pack, apply URL and questions live on the tracker job; reopening the pack reuses its tailored CV (no new copy)
+  const stored = () => page.evaluate(`(() => { const j = window.recto.ctx.tracker.get(${JSON.stringify(id)})
+    return { cvDocId: j.pack?.cvDocId ?? null, applyUrl: j.applyUrl ?? null, board: j.board ?? null, docs: window.recto.store.state.docs.length } })()`, { awaitPromise: false })
+  const first = await stored()
+  if (!first.cvDocId || !first.applyUrl || first.board !== 'acme') problems.push(`tracker job lacks pack/applyUrl/board: ${JSON.stringify(first)}`)
+  await page.evaluate(`document.querySelectorAll('dialog[open]').forEach(d => d.close())`, { awaitPromise: false })
+  await page.evaluate(`window.recto.ctx.openPack(${JSON.stringify(id)})`, { awaitPromise: false })
+  await waitUntil(page, `document.querySelectorAll('.pack[open] .pack-q').length > 0`, { what: 'stored pack reopens' })
+  const again = await stored()
+  if (again.docs !== first.docs || again.cvDocId !== first.cvDocId) problems.push(`reopening the pack made another CV copy: ${JSON.stringify({ first, again })}`)
+  await page.evaluate(`document.querySelectorAll('dialog[open]').forEach(d => d.close())`, { awaitPromise: false })
+  await page.evaluate('window.recto.ctx.openJobsDialog()', { awaitPromise: false })
+  await waitUntil(page, `document.querySelector('.board[open] .board-col[data-status="applied"] [data-job="${id}"]')`, { what: 'board card in Applied' })
+  await click(page, '[data-action="board-close"]').catch(() => {})
+  const hosts = await page.evaluate('window.__discoverHosts', { awaitPromise: false })
+  if (hosts.some(h => !['boards-api.greenhouse.io', 'remotive.com'].includes(h))) problems.push(`Discover contacted a disabled source: ${JSON.stringify(hosts)}`)
+}
+
 // ---------------- main ----------------
 
 async function main() {
@@ -316,6 +393,7 @@ async function main() {
       for (const [name, flow] of [
         ['suggest', suggestFlow], ['job', jobFlow], ['evaluate', evaluateFlow], ['tailor', tailorFlow], ['cover letter', coverLetterFlow],
         ['ATS chip', atsChipFlow], ['review checks', reviewFlow], ['job evaluation table', jobEvalTableFlow], ['jobs board', boardFlow], ['command bar', commandBarFlow],
+        ['discover', discoverFlow],
       ]) {
         try {
           await flow(page, problems)
@@ -338,7 +416,7 @@ async function main() {
     for (const p of problems) console.error(`  - ${p}`)
     process.exitCode = 1
   } else {
-    console.log('assist-check: all flows passed (suggest, job match, evaluate, tailor, cover letter, ATS chip, review checks, job evaluation table, jobs board, command bar), no console errors')
+    console.log('assist-check: all flows passed (suggest, job match, evaluate, tailor, cover letter, ATS chip, review checks, job evaluation table, jobs board, command bar, discover → pack → applied), no console errors')
   }
 }
 

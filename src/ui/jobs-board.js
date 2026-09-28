@@ -195,7 +195,10 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
           onChange: e => move(job.id, e.target.value)
         }, COLUMNS.map(s => h('option', { value: s, selected: s === job.status }, t(`jobs.status.${s}`)))),
         url && h('a', { class: 'ui-btn ui-btn--sm', href: url, target: '_blank', rel: 'noopener noreferrer' }, t('board.sourceLink')),
-        h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'board-job-tab' }, onClick: () => { store.setUi({ panel: 'job', jobId: job.id }); close() } }, t('board.openJobTab'))),
+        h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'board-job-tab' }, onClick: () => { store.setUi({ panel: 'job', jobId: job.id }); close() } }, t('board.openJobTab')),
+        ctx.openPack && h('button', {
+          class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'board-pack' }, onClick: () => ctx.openPack(job.id, { onChange: render })
+        }, t(job.pack ? 'pack.open' : 'pack.prepare'))),
       h('section', { class: 'board-eval' }, h('h3', {}, t('board.evaluation')), evaluationSummary(job)),
       h('section', {}, h('h3', {}, h('label', { htmlFor: notesId }, t('board.notes'))), notes),
       h('section', {}, h('h3', {}, t('board.timeline')), h('ol', { class: 'board-timeline' },

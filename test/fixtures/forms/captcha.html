@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Backend Engineer @ Acme</title>
+</head>
+<body>
+<!-- Ashby-style form behind an hCaptcha challenge (widget markup as hCaptcha renders it; no network) -->
+<div class="ashby-application-form-container">
+  <form action="/__forms/received" method="get" enctype="multipart/form-data">
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_name">Name</label>
+      <input type="text" id="_systemfield_name" name="_systemfield_name" required></div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_email">Email</label>
+      <input type="email" id="_systemfield_email" name="_systemfield_email" required></div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_resume">Resume</label>
+      <input type="file" id="_systemfield_resume" name="_systemfield_resume" required></div>
+    <div class="h-captcha" data-sitekey="10000000-ffff-ffff-ffff-000000000001">
+      <iframe src="about:blank" title="Widget containing checkbox for hCaptcha security challenge" data-hcaptcha-widget-id="0x1"></iframe>
+    </div>
+    <button type="submit" class="ashby-application-form-submit-button">Submit Application</button>
+  </form>
+</div>
+</body>
+</html>

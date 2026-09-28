@@ -253,6 +253,7 @@ export function mountTopbar(root, store, ctx) {
   const starChip = chip('score-chip', 'job')
   const status = h('span', { class: 'app-status ui-muted' })
   const jobsBtn = btn('jobs', t('jobs.button'), () => ctx.openJobsDialog?.())
+  const discoverBtn = btn('discover', t('discover.button'), () => ctx.openDiscover?.())
   const aiBtn = btn('ai', '', () => ctx.openAiDialog?.(), { class: 'ui-btn ui-btn--ghost app-ai' })
   const aiLabel = () => {
     aiBtn.textContent = aiBtn.title = ctx.ai?.label() ?? t('ai.button')
@@ -273,7 +274,7 @@ export function mountTopbar(root, store, ctx) {
     h('span', { class: 'ui-sep' }),
     undo, redo,
     h('span', { class: 'ui-spacer' }),
-    jobsBtn, aiBtn,
+    discoverBtn, jobsBtn, aiBtn,
     h('span', { class: 'ui-sep' }),
     atsChip, matchChip, starChip, status, themeBtn,
   )

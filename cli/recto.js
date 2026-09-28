@@ -19,6 +19,7 @@ import { validateSuggestions } from '../src/ai/guard.js'
 import { normalizeProfile } from '../src/profile.js'
 import { createServer, listen } from '../serve.js'
 import { launch, countPdfPages } from './chrome.js'
+import { main as autoapply } from './autoapply.js'
 
 const ROOT = new URL('../', import.meta.url)
 const DOC_ROUTE = '/__cli/doc.json'
@@ -32,12 +33,16 @@ const USAGE = `Usage:
   recto tips <in> [--json]
   recto apply <in> --edits <edits.json> [--allow-new-facts] [-o <out>] [--json]
   recto profile [--set key=value ...] [--file <profile.json>] [--json]
+  recto autoapply --jobs <jobs.json> --cv <in> [--profile <profile.json>] [--min-score 4] [--max 5]
+                  [--submit] [--dry-run] [--log <applications.jsonl>]
 
 Input:  .cv.json (Recto), .json (Recto or JSON Resume), .md / .txt (Recto Markdown)
 Output: .pdf (needs Chrome/Chromium; set CHROME_PATH), .txt (ATS text), .json (JSON Resume), .cv.json (Recto)
 check prints preflight issues and exits 1 on errors. Without a browser it runs the content rules only.
 ats exits 1 on grade F or any critical item. apply exits 1 when any edit was refused.
-evaluate and profile use ./profile.json when --profile/--file is not given.`
+evaluate, profile and autoapply use ./profile.json when --profile/--file is not given.
+autoapply fills saved jobs' application forms in a visible Chrome and stops before Submit; --submit submits only
+when every guard passes (score, daily cap, no unfilled required field, no CAPTCHA/login/account wall).`
 
 class UsageError extends Error {}
 
@@ -277,6 +282,9 @@ async function profile({ set = [], file, json }) {
 const COMMANDS = ['export', 'check', 'ats', 'evaluate', 'tips', 'apply', 'profile']
 
 async function main(argv) {
+  if (argv[0] === 'autoapply') {
+    return autoapply(argv.slice(1), { readInput, exportPdf: exportFile, UsageError, usage: USAGE })
+  }
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
