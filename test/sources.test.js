@@ -1,0 +1,358 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import {
+  SOURCES, ATS, parsePostings, parseQuestions, fetchDetails, fetchPostings, findBoards, slugVariants,
+  COMPANIES_KEY, normalizeCompanies, loadCompanies, saveCompanies, importCompanies, exportCompanies
+} from '../src/jobs/sources.js'
+
+const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/sources/${name}.json`, import.meta.url), 'utf8'))
+const memory = (init = {}) => {
+  const m = new Map(Object.entries(init))
+  return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), map: m }
+}
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+
+function assertPosting(p, source, board) {
+  assert.equal(p.source, source)
+  assert.equal(p.board, board)
+  assert.ok(p.id.startsWith(`${source}:${board}:`), p.id)
+  for (const k of ['company', 'title', 'location', 'url', 'applyUrl', 'text']) assert.equal(typeof p[k], 'string', k)
+  assert.ok(p.title && p.company && p.text.length > 200, `${p.id} has title, company, text`)
+  assert.ok(/^https:\/\//.test(p.url) && /^https:\/\//.test(p.applyUrl), p.id)
+  assert.ok(p.remote === true || p.remote === false || p.remote === null)
+  assert.match(p.postedAt, ISO)
+  assert.doesNotMatch(p.text, /<\/?(?:p|div|li|span|strong)\b|&lt;|&amp;|&nbsp;/, `${p.id} text is plain`)
+}
+
+test('source URLs are exactly the spec endpoints', () => {
+  assert.equal(SOURCES.greenhouse.listUrl('airbnb'), 'https://boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true')
+  assert.equal(SOURCES.greenhouse.detailUrl('airbnb', '8232207'), 'https://boards-api.greenhouse.io/v1/boards/airbnb/jobs/8232207?questions=true')
+  assert.equal(SOURCES.lever.listUrl('palantir'), 'https://api.lever.co/v0/postings/palantir?mode=json')
+  assert.equal(SOURCES.ashby.listUrl('openai'), 'https://api.ashbyhq.com/posting-api/job-board/openai?includeCompensation=true')
+  assert.equal(SOURCES.remotive.listUrl('react native'), 'https://remotive.com/api/remote-jobs?search=react%20native&limit=100')
+  assert.equal(SOURCES.remotive.listUrl(''), 'https://remotive.com/api/remote-jobs?search=&limit=100')
+  assert.equal(SOURCES.arbeitnow.listUrl(), 'https://www.arbeitnow.com/api/job-board-api?page=1')
+  assert.equal(SOURCES.arbeitnow.listUrl(3), 'https://www.arbeitnow.com/api/job-board-api?page=3')
+  assert.equal(SOURCES.greenhouse.listUrl('a/b'), 'https://boards-api.greenhouse.io/v1/boards/a%2Fb/jobs?content=true')
+  assert.deepEqual(ATS, ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable'])
+  assert.equal(SOURCES.smartrecruiters.listUrl('Canva'), 'https://api.smartrecruiters.com/v1/companies/Canva/postings?limit=100&offset=0')
+  assert.equal(SOURCES.smartrecruiters.listUrl('SEEK', { offset: 100, country: 'au' }), 'https://api.smartrecruiters.com/v1/companies/SEEK/postings?limit=100&offset=100&country=au')
+  assert.equal(SOURCES.smartrecruiters.detailUrl('SEEK', '744000152065280'), 'https://api.smartrecruiters.com/v1/companies/SEEK/postings/744000152065280')
+  assert.equal(SOURCES.workable.listUrl('rokt'), 'https://apply.workable.com/api/v1/widget/accounts/rokt?details=true')
+  assert.equal(SOURCES.jobicy.listUrl('australia'), 'https://jobicy.com/api/v2/remote-jobs?count=50&geo=australia')
+  assert.equal(SOURCES.jobicy.listUrl(''), 'https://jobicy.com/api/v2/remote-jobs?count=50')
+})
+
+test('greenhouse: real board response → postings', () => {
+  const ps = parsePostings('greenhouse', fixture('greenhouse'), { board: 'airbnb', name: 'Airbnb' })
+  assert.equal(ps.length, 3)
+  ps.forEach(p => assertPosting(p, 'greenhouse', 'airbnb'))
+  const p = ps.find(p => p.id === 'greenhouse:airbnb:8214444')
+  assert.equal(p.title, 'Business Systems Engineer, Tech Foundations')
+  assert.equal(p.company, 'Airbnb')
+  assert.equal(p.location, 'San Francisco, CA')
+  assert.equal(p.remote, true) // metadata Workplace Type: Remote
+  assert.equal(p.url, 'https://careers.airbnb.com/positions/8214444?gh_jid=8214444')
+  assert.equal(p.applyUrl, 'https://job-boards.greenhouse.io/airbnb/jobs/8214444')
+  assert.equal(p.postedAt.slice(0, 10), '2026-09-18')
+  assert.equal(ps.find(p => p.id === 'greenhouse:airbnb:8214375').remote, false) // Onsite
+  assert.equal(ps.find(p => p.id === 'greenhouse:airbnb:7532824').remote, false) // Hybrid
+})
+
+test('lever: real postings → postings (hosted and apply URLs, workplace type)', () => {
+  const ps = parsePostings('lever', fixture('lever'), { board: 'palantir', name: 'Palantir' })
+  assert.equal(ps.length, 2)
+  ps.forEach(p => assertPosting(p, 'lever', 'palantir'))
+  const p = ps.find(p => p.id === 'lever:palantir:6fe5515f-f677-4d98-8ac2-1775a425f5e7')
+  assert.equal(p.title, 'Backend Software Engineer - Infrastructure')
+  assert.equal(p.company, 'Palantir')
+  assert.equal(p.location, 'New York, NY')
+  assert.equal(p.remote, false) // hybrid
+  assert.equal(p.url, 'https://jobs.lever.co/palantir/6fe5515f-f677-4d98-8ac2-1775a425f5e7')
+  assert.equal(p.applyUrl, 'https://jobs.lever.co/palantir/6fe5515f-f677-4d98-8ac2-1775a425f5e7/apply')
+  assert.equal(p.postedAt.slice(0, 10), '2025-08-06')
+  const [remote] = parsePostings('lever', [{ ...fixture('lever')[0], workplaceType: 'remote', salaryRange: { min: 100000, max: 150000, currency: 'USD', interval: 'per-year-salary' } }], { board: 'palantir', name: 'Palantir' })
+  assert.equal(remote.remote, true)
+  assert.equal(remote.salary, '100000–150000 USD per year')
+})
+
+test('ashby: real board → postings with compensation', () => {
+  const ps = parsePostings('ashby', fixture('ashby'), { board: 'openai', name: 'OpenAI' })
+  assert.equal(ps.length, 3)
+  ps.forEach(p => assertPosting(p, 'ashby', 'openai'))
+  const se = ps.find(p => p.title === 'Software Engineer, Scaled Abuse')
+  assert.equal(se.id, 'ashby:openai:3c67f712-697d-48d8-b05c-01be896e61da')
+  assert.equal(se.company, 'OpenAI')
+  assert.equal(se.remote, null) // not stated
+  assert.equal(se.applyUrl, 'https://jobs.ashbyhq.com/openai/3c67f712-697d-48d8-b05c-01be896e61da/application')
+  assert.ok(se.salary && /\$\d/.test(se.salary), se.salary)
+  assert.equal(ps.find(p => p.location === 'US - Remote').remote, true)
+  assert.equal(ps.find(p => /Wireless/.test(p.title)).remote, false) // OnSite
+})
+
+test('remotive: feed → remote postings with Remotive attribution', () => {
+  const ps = parsePostings('remotive', fixture('remotive'))
+  assert.equal(ps.length, 3)
+  ps.forEach(p => assertPosting(p, 'remotive', 'remotive'))
+  const p = ps.find(p => p.id === 'remotive:remotive:2091141')
+  assert.equal(p.title, 'Frontend Web Application Developer')
+  assert.equal(p.remote, true)
+  assert.equal(p.url, p.applyUrl)
+  assert.match(p.url, /^https:\/\/remotive\.com\//)
+  assert.equal(p.salary, '$90k - $105k')
+  assert.equal(p.postedAt, '2026-09-18T16:43:22.000Z') // no zone in the API → UTC
+  assert.ok(!('salary' in ps.find(p => p.id === 'remotive:remotive:2091144')), 'empty salary is omitted')
+})
+
+test('arbeitnow: feed → postings', () => {
+  const ps = parsePostings('arbeitnow', fixture('arbeitnow'))
+  assert.equal(ps.length, 3)
+  ps.forEach(p => assertPosting(p, 'arbeitnow', 'arbeitnow'))
+  const p = ps.find(p => p.id === 'arbeitnow:arbeitnow:ai-solutions-engineer-munchen-358086')
+  assert.equal(p.title, 'AI Solutions Engineer (m/w/d)')
+  assert.equal(p.location, 'München')
+  assert.equal(p.remote, false)
+  assert.equal(p.postedAt.slice(0, 10), '2026-09-27')
+  assert.equal(ps.find(p => /Influencer/.test(p.title)).remote, true)
+})
+
+test('smartrecruiters: company postings page → postings (text comes from the detail request)', () => {
+  const ps = parsePostings('smartrecruiters', fixture('smartrecruiters'), { board: 'Carsales', name: 'Carsales' })
+  assert.equal(ps.length, 3)
+  const p = ps[0]
+  assert.equal(p.id, 'smartrecruiters:Carsales:744000152067859')
+  assert.equal(p.title, 'Customer Success Manager')
+  assert.equal(p.company, 'Carsales')
+  assert.equal(p.location, 'Melbourne, VIC, Australia')
+  assert.equal(p.remote, false, 'hybrid is not remote')
+  assert.equal(p.url, 'https://jobs.smartrecruiters.com/Carsales/744000152067859')
+  assert.equal(p.applyUrl, p.url)
+  assert.equal(p.postedAt, '2026-09-28T03:17:32.002Z')
+  assert.equal(p.text, '')
+  const [remote] = parsePostings('smartrecruiters', { content: [{ id: '1', name: 'Engineer', company: { name: 'canva' }, location: { city: 'Sydney', country: 'au', remote: true, fullLocation: 'Sydney, , Australia' } }] }, { board: 'Canva' })
+  assert.equal(remote.location, 'Sydney, Australia')
+  assert.equal(remote.remote, true)
+  assert.equal(remote.company, 'canva', 'falls back to the API company name')
+})
+
+test('fetchDetails: smartrecruiters postings gain their job ad text', async () => {
+  const calls = []
+  const fetch = async url => { calls.push(url); return { ok: true, status: 200, json: async () => fixture('smartrecruiters-detail') } }
+  const [p] = parsePostings('smartrecruiters', fixture('smartrecruiters'), { board: 'Carsales', name: 'Carsales' })
+  const out = await fetchDetails(p, { fetch })
+  assert.deepEqual(calls, ['https://api.smartrecruiters.com/v1/companies/Carsales/postings/744000152067859'])
+  assert.ok(out.text.length > 500)
+  assert.match(out.text, /Why this opportunity/)
+  assert.doesNotMatch(out.text, /<\/?(?:p|strong|li)\b|&amp;/)
+  assert.equal(p.text, '', 'input not mutated')
+})
+
+test('fetchPostings: smartrecruiters pages until totalFound (max 300) with the country filter; others one request', async () => {
+  const page = (total, n) => ({ totalFound: total, content: Array.from({ length: n }, (_, i) => ({ id: `${Math.random()}`, name: `Job ${i}`, location: {} })) })
+  const run = async (total, opts = {}) => {
+    const calls = []
+    const fetch = async url => {
+      calls.push(url)
+      const offset = Number(new URL(url).searchParams.get('offset'))
+      return { ok: true, status: 200, json: async () => page(total, Math.max(0, Math.min(100, total - offset))) }
+    }
+    const ps = await fetchPostings({ source: 'smartrecruiters', board: 'Canva', name: 'Canva' }, { fetch, ...opts })
+    return { ps, calls }
+  }
+  const a = await run(250, { country: 'AU' })
+  assert.equal(a.ps.length, 250)
+  assert.deepEqual(a.calls.map(u => new URL(u).search), ['?limit=100&offset=0&country=au', '?limit=100&offset=100&country=au', '?limit=100&offset=200&country=au'])
+  const b = await run(1000)
+  assert.equal(b.calls.length, 3)
+  assert.ok(b.calls.every(u => !u.includes('country=')), 'no country → no filter')
+  assert.equal((await run(0)).calls.length, 1)
+  assert.equal((await run(40, { country: 'mars' })).calls[0].includes('country='), false, 'unknown country → no filter')
+
+  const calls = []
+  const fetch = async url => { calls.push(url); return { ok: true, status: 200, json: async () => fixture('lever') } }
+  const lv = await fetchPostings({ source: 'lever', board: 'palantir', name: 'Palantir' }, { fetch, country: 'AU' })
+  assert.deepEqual(calls, ['https://api.lever.co/v0/postings/palantir?mode=json'])
+  assert.ok(lv.length > 0)
+})
+
+test('workable: account widget → postings', () => {
+  const ps = parsePostings('workable', fixture('workable'), { board: 'rokt', name: 'Rokt' })
+  assert.equal(ps.length, 4)
+  ps.forEach(p => assertPosting(p, 'workable', 'rokt'))
+  const p = ps[0]
+  assert.equal(p.id, 'workable:rokt:470376CA23')
+  assert.equal(p.company, 'Rokt')
+  assert.equal(p.location, 'Sydney, New South Wales, Australia')
+  assert.equal(p.url, 'https://apply.workable.com/j/470376CA23')
+  assert.equal(p.applyUrl, 'https://apply.workable.com/j/470376CA23/apply')
+  assert.equal(p.postedAt, '2026-08-31T00:00:00.000Z')
+  assert.equal(ps[2].remote, true, 'telecommuting')
+  assert.equal(ps[3].location, 'New York, United States', 'repeated parts collapse')
+  const [bare] = parsePostings('workable', { name: 'Acme', jobs: [{ shortcode: 'X1', title: 'Engineer' }] }, { board: 'acme' })
+  assert.deepEqual([bare.company, bare.location, bare.text, bare.url, bare.postedAt], ['Acme', '', '', '', ''])
+})
+
+test('jobicy: feed → remote postings with Jobicy attribution', () => {
+  const ps = parsePostings('jobicy', fixture('jobicy'))
+  assert.equal(ps.length, 4)
+  ps.forEach(p => assertPosting(p, 'jobicy', 'jobicy'))
+  const p = ps[0]
+  assert.equal(p.id, 'jobicy:jobicy:154095')
+  assert.equal(p.company, 'StackAdapt')
+  assert.equal(p.location, 'Australia')
+  assert.equal(p.remote, true)
+  assert.equal(p.url, 'https://jobicy.com/jobs/154095-account-director-vertical-sales')
+  assert.equal(p.salary, '150298–206659 AUD yearly')
+  assert.equal(p.postedAt, '2026-09-27T11:57:59.000Z')
+  assert.equal(ps[3].location, 'APAC, EMEA, LATAM, Canada, USA')
+})
+
+test('findBoards: probes slug variants across the five ATS in parallel; only boards with jobs', async () => {
+  assert.deepEqual(slugVariants('Culture Amp'), ['cultureamp', 'culture-amp', 'culture_amp'])
+  assert.deepEqual(slugVariants(' Canva '), ['canva'])
+  assert.deepEqual(slugVariants('harrison.ai'), ['harrisonai', 'harrison-ai', 'harrison_ai', 'harrison.ai'])
+  const calls = []
+  let inFlight = 0, peak = 0
+  const fetch = async (url, init) => {
+    calls.push(url)
+    inFlight++; peak = Math.max(peak, inFlight)
+    await new Promise(r => setTimeout(r, 5))
+    inFlight--
+    const ok = body => ({ ok: true, status: 200, json: async () => body })
+    if (url.startsWith('https://boards-api.greenhouse.io/v1/boards/cultureamp/')) return ok(fixture('greenhouse'))
+    if (url.startsWith('https://api.lever.co/v0/postings/culture-amp')) return ok([])
+    if (url.startsWith('https://api.smartrecruiters.com/v1/companies/CultureAmp/')) return ok({ totalFound: 7, content: [{ id: '1', name: 'X', location: {} }] })
+    if (url.startsWith('https://api.ashbyhq.com/posting-api/job-board/culture_amp')) throw new TypeError('network')
+    if (url.startsWith('https://apply.workable.com/api/v1/widget/accounts/culture-amp')) {
+      return new Promise((resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+    }
+    return { ok: false, status: 404, json: async () => ({}) }
+  }
+  const found = await findBoards('Culture Amp', { fetch, timeoutMs: 50 })
+  assert.deepEqual(found, [
+    { source: 'greenhouse', board: 'cultureamp', name: 'Culture Amp', jobs: parsePostings('greenhouse', fixture('greenhouse'), { board: 'cultureamp' }).length },
+    { source: 'smartrecruiters', board: 'CultureAmp', name: 'Culture Amp', jobs: 7 }
+  ])
+  const sr = calls.filter(u => u.includes('smartrecruiters')).map(u => u.split('/')[5])
+  assert.deepEqual(sr, ['CultureAmp', 'culture-amp', 'culture_amp'], 'SmartRecruiters ids are case-insensitive: CamelCase first')
+  assert.equal(calls.length, 5 * 3)
+  assert.ok(peak > 6, 'probes run in parallel')
+  assert.deepEqual(await findBoards('', { fetch }), [])
+  assert.deepEqual(await findBoards('x', { fetch: () => { throw new Error('boom') } }), [])
+  const ctrl = new AbortController()
+  ctrl.abort()
+  assert.deepEqual(await findBoards('Culture Amp', { fetch, signal: ctrl.signal }), [])
+})
+
+test('parsePostings never throws on junk and skips jobs without id or title', () => {
+  for (const source of ['greenhouse', 'lever', 'ashby', 'remotive', 'arbeitnow', 'smartrecruiters', 'workable', 'jobicy', 'nope']) {
+    for (const junk of [null, undefined, 'x', 42, {}, [], { jobs: 'x' }, { data: {} }, [null, 1, 'a'], { jobs: [{}], data: [{}] }]) {
+      assert.deepEqual(parsePostings(source, junk, { board: 'b', name: 'B' }), [], `${source} ${JSON.stringify(junk)}`)
+    }
+  }
+  const [p] = parsePostings('lever', [{ id: 'x', text: 'Engineer', createdAt: 'garbage' }], { board: 'acme', name: 'Acme' })
+  assert.equal(p.postedAt, '')
+  assert.equal(p.location, '')
+  assert.equal(p.remote, null)
+  assert.equal(p.url, '')
+})
+
+test('parseQuestions: greenhouse detail → Question[] (hidden fields dropped, options as labels)', () => {
+  const qs = parseQuestions(fixture('greenhouse-detail'))
+  assert.deepEqual(qs[0], { label: 'First Name', name: 'first_name', type: 'input_text', required: true })
+  const resume = qs.filter(q => q.label === 'Resume/CV')
+  assert.deepEqual(resume.map(q => q.type), ['input_file', 'textarea'])
+  const heard = qs.find(q => q.label === 'How did you hear about this job?')
+  assert.equal(heard.required, true)
+  assert.equal(heard.type, 'multi_value_single_select')
+  assert.ok(heard.options.includes('Other'))
+  assert.ok(qs.some(q => q.label === 'Location' && q.name === 'location'), 'location questions included')
+  assert.ok(!qs.some(q => q.type === 'input_hidden'))
+  assert.ok(qs.every(q => typeof q.label === 'string' && typeof q.name === 'string' && typeof q.required === 'boolean'))
+  assert.deepEqual(parseQuestions(null), [])
+  assert.deepEqual(parseQuestions({ questions: [null, { fields: 'x' }] }), [])
+})
+
+test('fetchDetails: greenhouse postings gain questions; others are returned untouched without a request', async () => {
+  const calls = []
+  const fetch = async (url, init) => {
+    calls.push({ url, signal: init?.signal })
+    return { ok: true, status: 200, json: async () => fixture('greenhouse-detail') }
+  }
+  const [gh] = parsePostings('greenhouse', fixture('greenhouse'), { board: 'airbnb', name: 'Airbnb' })
+  const out = await fetchDetails(gh, { fetch })
+  assert.equal(calls[0].url, `https://boards-api.greenhouse.io/v1/boards/airbnb/jobs/${gh.id.split(':')[2]}?questions=true`)
+  assert.ok(out.questions.length > 5)
+  assert.equal(out.id, gh.id)
+  assert.ok(!('questions' in gh), 'input not mutated')
+
+  const [lv] = parsePostings('lever', fixture('lever'), { board: 'palantir', name: 'Palantir' })
+  assert.equal(await fetchDetails(lv, { fetch }), lv)
+  assert.equal(calls.length, 1)
+
+  const failing = async () => ({ ok: false, status: 404, json: async () => ({}) })
+  await assert.rejects(fetchDetails(gh, { fetch: failing }), /HTTP 404/)
+  const ctrl = new AbortController()
+  const cancelled = (url, init) => new Promise((resolve, reject) => {
+    init.signal.addEventListener('abort', () => reject(init.signal.reason))
+    ctrl.abort()
+  })
+  await assert.rejects(fetchDetails(gh, { fetch: cancelled, signal: ctrl.signal }), { name: 'AbortError' })
+})
+
+test('companies: normalize drops junk and duplicates', () => {
+  const list = normalizeCompanies([
+    { source: 'greenhouse', board: ' stripe ', name: 'Stripe' },
+    { source: 'greenhouse', board: 'Stripe', name: 'Dup' },
+    { source: 'lever', board: 'palantir' },
+    { source: 'remotive', board: 'x', name: 'X' },
+    { source: 'smartrecruiters', board: 'Canva', name: 'Canva' },
+    { source: 'workable', board: 'rokt' },
+    { source: 'ashby', board: '', name: 'Empty' },
+    null, 'x', { source: 'ashby', board: 'openai', name: 'OpenAI', extra: 1 }
+  ])
+  assert.deepEqual(list, [
+    { source: 'greenhouse', board: 'stripe', name: 'Stripe' },
+    { source: 'lever', board: 'palantir', name: 'palantir' },
+    { source: 'smartrecruiters', board: 'Canva', name: 'Canva' },
+    { source: 'workable', board: 'rokt', name: 'rokt' },
+    { source: 'ashby', board: 'openai', name: 'OpenAI' }
+  ])
+  assert.deepEqual(normalizeCompanies('nope'), [])
+})
+
+test('companies store: starter set until saved, then the saved list; import/export round trip', () => {
+  const starter = [{ source: 'greenhouse', board: 'airbnb', name: 'Airbnb' }]
+  const storage = memory()
+  assert.deepEqual(loadCompanies(storage, starter), starter)
+  assert.deepEqual(loadCompanies(null, starter), starter)
+  saveCompanies([{ source: 'lever', board: 'palantir', name: 'Palantir' }], storage)
+  assert.deepEqual(JSON.parse(storage.map.get(COMPANIES_KEY)), [{ source: 'lever', board: 'palantir', name: 'Palantir' }])
+  assert.deepEqual(loadCompanies(storage, starter), [{ source: 'lever', board: 'palantir', name: 'Palantir' }])
+  saveCompanies([], storage)
+  assert.deepEqual(loadCompanies(storage, starter), [], 'an emptied list stays empty')
+  assert.deepEqual(loadCompanies(memory({ [COMPANIES_KEY]: '{bad' }), starter), starter)
+  const throwing = { getItem () { throw new Error('blocked') }, setItem () { throw new Error('blocked') } }
+  assert.deepEqual(loadCompanies(throwing, starter), starter)
+  assert.doesNotThrow(() => saveCompanies(starter, throwing))
+
+  const json = exportCompanies(starter)
+  assert.deepEqual(JSON.parse(json), { format: 'recto-companies', version: 1, companies: starter })
+  assert.deepEqual(importCompanies(json), { companies: starter, warnings: [] })
+  assert.deepEqual(importCompanies(starter).companies, starter)
+  assert.deepEqual(importCompanies('{bad'), { companies: [], warnings: [{ code: 'invalid-json' }] })
+  assert.deepEqual(importCompanies({ nope: 1 }), { companies: [], warnings: [{ code: 'invalid-json' }] })
+  const partial = importCompanies([...starter, { source: 'workday', board: 'x' }])
+  assert.deepEqual(partial, { companies: starter, warnings: [{ code: 'invalid-company', index: 1 }] })
+})
+
+test('data/companies.json: verified boards, Australian-heavy ones first, every ATS present', () => {
+  const list = JSON.parse(readFileSync(new URL('../data/companies.json', import.meta.url), 'utf8'))
+  assert.ok(Array.isArray(list) && list.length >= 50 && list.length <= 100, `${list.length}`)
+  assert.deepEqual(normalizeCompanies(list), list, 'already normalized, no duplicates')
+  for (const s of ATS) assert.ok(list.some(c => c.source === s), s)
+  for (const s of ['greenhouse', 'lever', 'ashby']) assert.ok(list.filter(c => c.source === s).length >= 8, s)
+  assert.deepEqual(list[0], { source: 'ashby', board: 'xero', name: 'Xero' })
+  for (const board of ['Canva', 'SEEK', 'Carsales']) assert.ok(list.some(c => c.source === 'smartrecruiters' && c.board === board), board)
+})

@@ -1,0 +1,325 @@
+{
+ "jobs": [
+  {
+   "id": "3c67f712-697d-48d8-b05c-01be896e61da",
+   "title": "Software Engineer, Scaled Abuse",
+   "department": "Applied AI",
+   "team": "Applied AI Engineering",
+   "employmentType": "FullTime",
+   "location": "San Francisco",
+   "shouldDisplayCompensationOnJobPostings": true,
+   "secondaryLocations": [],
+   "publishedAt": "2026-06-08T16:15:58.343+00:00",
+   "isListed": true,
+   "isRemote": null,
+   "workplaceType": null,
+   "address": {
+    "postalAddress": {
+     "addressRegion": "California",
+     "addressCountry": "United States",
+     "addressLocality": "San Francisco"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/openai/3c67f712-697d-48d8-b05c-01be896e61da",
+   "applyUrl": "https://jobs.ashbyhq.com/openai/3c67f712-697d-48d8-b05c-01be896e61da/application",
+   "descriptionHtml": "<h2><strong>About the team</strong></h2><p style=\"min-height:1.5em\">The Applied team safely brings OpenAI's technology to the world. We released ChatGPT; Plugins; DALL·E; and the APIs for GPT-5, embeddings, and fine-tuning. We also operate inference infrastructure at scale. There's a lot more on the immediate horizon.</p><p style=\"min-height:1.5em\">Our customers build fast-growing businesses around our APIs, which power product features that were never before possible. ChatGPT is a prime example of what is currently possible. We simultaneously ensure that our powerful tools are used responsibly. Safe deployment is more important to us than unfettered growth.</p><p style=\"min-height:1.5em\">The Fraud Engineering team works within our Applied Engineering organization identifying and responding to fraudsters on our platform. We are looking for a software engineer with anti fraud &amp; abuse experience to help architect and build our next-generation anti-fraud systems.</p><p style=\"min-height:1.5em\"></p><h2><strong>About the role</strong></h2><p style=\"min-height:1.5em\">The Scaled Abuse team protects OpenAI’s products and customers by detecting, preventing, and responding to fraudulent and abusive behavior at scale. We build and operate the backend and data systems that power real-time detection, investigation workflows, and enforcement — balancing strong protections with a great user experience as the platform grows.</p><p style=\"min-height:1.5em\">Our work sits at the intersection of engineering and abuse expertise: we partner closely with Trust &amp; Safety, Security, and Product to understand emerging attack patterns, translate messy signals into clear system behavior, and continuously harden our defenses. The problems are dynamic and ambiguous by default, so we value engineers who can quickly dive into an unfamiliar codebase, develop strong intuition about how it works end-to-end, and propose pragmatic improvements that make the entire stack more resilient.</p><p style=\"min-height:1.5em\"></p><h2><strong>In this role, you will:</strong></h2><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Design and build systems for fraud detection and remediation while balancing fraud loss, cost of implementation, and customer experience</p></li><li><p style=\"min-height:1.5em\">Work closely with finance, security, product, research, and trust &amp; safety operations to holistically combat fraudulent and abusive actors on our system</p></li><li><p style=\"min-height:1.5em\">Stay abreast of the latest techniques and tools to stay several steps ahead of determined and well resourced adversaries</p></li><li><p style=\"min-height:1.5em\">Utilize GPT-5 and future models to more effectively combat fraud and abuse</p></li></ul><p style=\"min-height:1.5em\"></p><h2><strong>You might thrive in this role if you:</strong></h2><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Have at least 5 years of software engineering experience in backend and data systems.</p></li><li><p style=\"min-height:1.5em\">Have at least 2 years experience in fraud or abuse analysis, investigation, and/or operations</p></li><li><p style=\"min-height:1.5em\">Can dive into our codebase, intuit how it works, and be able to have a strong intuition for suggestions that will lead us to a stronger engineering position.</p></li><li><p style=\"min-height:1.5em\">A voracious and intrinsic desire to learn and fill in missing skills. An equally strong talent for sharing that information clearly and concisely with others</p></li><li><p style=\"min-height:1.5em\">Are comfortable with ambiguity and rapidly changing conditions. You view changes as an opportunity to add structure and order when necessary</p></li><li><p style=\"min-height:1.5em\">Experience in Machine Learning techniques is a plus, but not required</p></li></ul><p style=\"min-height:1.5em\"><strong>Our tech stack</strong></p><p style=\"min-height:1.5em\">Our infrastructure is built on Terraform, Kubernetes, Azure, Python, Postgres, and Kafka. While we value experience with these technologies, we are primarily looking for engineers with strong technical skills and the ability to quickly pick up new tools and frameworks.</p><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\"><strong>About OpenAI</strong></p><p style=\"min-height:1.5em\">OpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. </p><p style=\"min-height:1.5em\">We are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. </p><p style=\"min-height:1.5em\">For additional information, please see <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"c-link c-link--underline\" href=\"https://cdn.openai.com/policies/eeo-policy-statement.pdf\"><u>OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement</u></a>.</p><p style=\"min-height:1.5em\">Background checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.</p><p style=\"min-height:1.5em\">To notify OpenAI that you believe this job posting is non-compliant, please submit a report through <a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://form.asana.com/?d=57018692298241&amp;k=5MqR40fZd7jlxVUh5J-UeA\">this form</a>. No response will be provided to inquiries unrelated to job posting compliance.</p><p style=\"min-height:1.5em\">We are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"c-link c-link--underline\" href=\"https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&amp;d=57018692298241\"><u>link</u></a>.</p><p style=\"min-height:1.5em\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" class=\"c-link\" href=\"https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\">OpenAI Global Applicant Privacy Policy</a></p><p style=\"min-height:1.5em\">At OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology.</p>",
+   "descriptionPlain": "ABOUT THE TEAM\n\nThe Applied team safely brings OpenAI's technology to the world. We released ChatGPT; Plugins; DALL·E; and the APIs for GPT-5, embeddings, and fine-tuning. We also operate inference infrastructure at scale. There's a lot more on the immediate horizon.\n\nOur customers build fast-growing businesses around our APIs, which power product features that were never before possible. ChatGPT is a prime example of what is currently possible. We simultaneously ensure that our powerful tools are used responsibly. Safe deployment is more important to us than unfettered growth.\n\nThe Fraud Engineering team works within our Applied Engineering organization identifying and responding to fraudsters on our platform. We are looking for a software engineer with anti fraud & abuse experience to help architect and build our next-generation anti-fraud systems.\n\n\n\n\nABOUT THE ROLE\n\nThe Scaled Abuse team protects OpenAI’s products and customers by detecting, preventing, and responding to fraudulent and abusive behavior at scale. We build and operate the backend and data systems that power real-time detection, investigation workflows, and enforcement — balancing strong protections with a great user experience as the platform grows.\n\nOur work sits at the intersection of engineering and abuse expertise: we partner closely with Trust & Safety, Security, and Product to understand emerging attack patterns, translate messy signals into clear system behavior, and continuously harden our defenses. The problems are dynamic and ambiguous by default, so we value engineers who can quickly dive into an unfamiliar codebase, develop strong intuition about how it works end-to-end, and propose pragmatic improvements that make the entire stack more resilient.\n\n\n\n\nIN THIS ROLE, YOU WILL:\n\n - Design and build systems for fraud detection and remediation while balancing fraud loss, cost of implementation, and customer experience\n\n - Work closely with finance, security, product, research, and trust & safety operations to holistically combat fraudulent and abusive actors on our system\n\n - Stay abreast of the latest techniques and tools to stay several steps ahead of determined and well resourced adversaries\n\n - Utilize GPT-5 and future models to more effectively combat fraud and abuse\n\n\n\n\nYOU MIGHT THRIVE IN THIS ROLE IF YOU:\n\n - Have at least 5 years of software engineering experience in backend and data systems.\n\n - Have at least 2 years experience in fraud or abuse analysis, investigation, and/or operations\n\n - Can dive into our codebase, intuit how it works, and be able to have a strong intuition for suggestions that will lead us to a stronger engineering position.\n\n - A voracious and intrinsic desire to learn and fill in missing skills. An equally strong talent for sharing that information clearly and concisely with others\n\n - Are comfortable with ambiguity and rapidly changing conditions. You view changes as an opportunity to add structure and order when necessary\n\n - Experience in Machine Learning techniques is a plus, but not required\n\nOur tech stack\n\nOur infrastructure is built on Terraform, Kubernetes, Azure, Python, Postgres, and Kafka. While we value experience with these technologies, we are primarily looking for engineers with strong technical skills and the ability to quickly pick up new tools and frameworks.\n\n\n\nAbout OpenAI\n\nOpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. \n\nWe are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. \n\nFor additional information, please see OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement https://cdn.openai.com/policies/eeo-policy-statement.pdf.\n\nBackground checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.\n\nTo notify OpenAI that you believe this job posting is non-compliant, please submit a report through this form https://form.asana.com/?d=57018692298241&k=5MqR40fZd7jlxVUh5J-UeA. No response will be provided to inquiries unrelated to job posting compliance.\n\nWe are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this link https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&d=57018692298241.\n\nOpenAI Global Applicant Privacy Policy https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\n\nAt OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology.",
+   "compensation": {
+    "compensationTierSummary": "$266K – $445K • Offers Equity",
+    "scrapeableCompensationSalarySummary": "$266K - $445K",
+    "compensationTiers": [
+     {
+      "id": "62bccc91-658d-42ba-a8b7-4555a960d645",
+      "tierSummary": "$266K – $445K • Offers Equity",
+      "title": null,
+      "additionalInformation": null,
+      "components": [
+       {
+        "id": "198987aa-85a4-4dcd-bd54-cc8945b37d93",
+        "summary": "Offers Equity",
+        "compensationType": "EquityCashValue",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": null,
+        "maxValue": null
+       },
+       {
+        "id": "ca2019c5-3d11-481a-85ff-3b1c677893bd",
+        "summary": "$266K – $445K",
+        "compensationType": "Salary",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": 266000,
+        "maxValue": 445000
+       }
+      ]
+     }
+    ],
+    "summaryComponents": [
+     {
+      "compensationType": "EquityCashValue",
+      "interval": "1 YEAR",
+      "currencyCode": "USD",
+      "minValue": null,
+      "maxValue": null
+     },
+     {
+      "compensationType": "Salary",
+      "interval": "1 YEAR",
+      "currencyCode": "USD",
+      "minValue": 266000,
+      "maxValue": 445000
+     }
+    ]
+   }
+  },
+  {
+   "id": "c414f15f-60c4-40b5-a896-d2ad6c7f4415",
+   "title": "Senior Technical Program Manager - Security",
+   "department": "Security",
+   "team": "Security",
+   "employmentType": "FullTime",
+   "location": "US - Remote",
+   "shouldDisplayCompensationOnJobPostings": true,
+   "secondaryLocations": [
+    {
+     "location": "New York City",
+     "address": {
+      "postalAddress": {
+       "addressRegion": "New York",
+       "addressCountry": "United States",
+       "addressLocality": "New York"
+      }
+     }
+    },
+    {
+     "location": "Seattle",
+     "address": {
+      "postalAddress": {
+       "addressRegion": "Washington",
+       "addressCountry": "United States",
+       "addressLocality": "Seattle"
+      }
+     }
+    },
+    {
+     "location": "Washington, DC",
+     "address": {
+      "postalAddress": {
+       "addressRegion": "District of Columbia",
+       "addressCountry": "United States",
+       "addressLocality": "Washington"
+      }
+     }
+    },
+    {
+     "location": "San Francisco",
+     "address": {
+      "postalAddress": {
+       "addressRegion": "California",
+       "addressCountry": "United States",
+       "addressLocality": "San Francisco"
+      }
+     }
+    }
+   ],
+   "publishedAt": "2026-06-25T17:30:54.205+00:00",
+   "isListed": true,
+   "isRemote": true,
+   "workplaceType": "Remote",
+   "address": {
+    "postalAddress": {
+     "addressCountry": "United States"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/openai/c414f15f-60c4-40b5-a896-d2ad6c7f4415",
+   "applyUrl": "https://jobs.ashbyhq.com/openai/c414f15f-60c4-40b5-a896-d2ad6c7f4415/application",
+   "descriptionHtml": "<p style=\"min-height:1.5em\"><strong>About the Team</strong></p><p style=\"min-height:1.5em\">OpenAI builds powerful AI systems like ChatGPT, the OpenAI API, and enterprise products that serve millions of users across the globe. As we scale, securing our infrastructure, protecting sensitive data, and meeting global compliance standards are essential to our success and societal impact.</p><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\">Security at OpenAI is a cross-cutting function that spans infrastructure, applied engineering, legal, policy, and product. Technical Program Managers (TPMs) play a critical leadership role in aligning teams and delivering execution at scale and this role will be foundational in shaping how we secure OpenAI’s systems, users, and commitments.</p><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\"><strong>About the Role</strong></p><p style=\"min-height:1.5em\">We’re seeking a Senior Technical Program Manager to drive cross-functional security, privacy, IT and compliance initiatives at the intersection of infrastructure, product, and policy. You will execute complex programs that reduce internal data access, prevent misuse, and ship security capabilities. You will focus your efforts on the most critical initiatives within Security, crossing the spectrum of insider threat, information security, physical security, and information technology challenges.</p><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\">This role is deeply technical and execution-focused. It requires a structured operator who thrives in ambiguity, partners effectively across boundaries, and applies principled judgment to scale trust, governance, and security across OpenAI’s systems and products.</p><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\"><strong>In this role, you will:</strong></p><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Drive execution of critical security and compliance programs such as vulnerability management, merger and acquisition security and integration, infrastructure hardening, and datacenter security management. You will need to deeply collaborate on technical architecture and resolve technical problems in partnership with engineering.</p></li><li><p style=\"min-height:1.5em\">Partner with IT, Infrastructure, Application, Legal, Privacy, and Security teams to build scalable programs, and deliver critical security outcomes across multiple disciplines, including insider threat, information security, physical security, and information technology.</p></li><li><p style=\"min-height:1.5em\">Establish scalable frameworks and build programs around critical security initiatives including vulnerability management, evidence collection, incident response coordination, supply chain risk management, and device security.</p></li><li><p style=\"min-height:1.5em\">Track and enforce OpenAI’s privacy and security requirements by translating commitments into engineering milestones and driving their full implementation across systems.</p></li><li><p style=\"min-height:1.5em\">Create and maintain program-level visibility across risk areas, security milestones, and cross-org dependencies—ensuring outcomes are delivered reliably and at high quality.</p></li><li><p style=\"min-height:1.5em\">Communicate status, risks, tradeoffs, and decisions clearly to technical and executive audiences and drive cross-functional execution with urgency and care.</p></li></ul><h3><strong>You might thrive in this role if you:</strong></h3><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Are an empathetic communicator and leader—able to influence across technical and non-technical audiences, and build durable trust with partners.</p></li><li><p style=\"min-height:1.5em\">Have 5+ years of experience leading complex technical programs focused on infrastructure security, data privacy, compliance, or enterprise platform capabilities.</p></li><li><p style=\"min-height:1.5em\">Are deeply fluent in the intersection of engineering systems, security controls, and regulatory expectations—and are able to bring clarity and structure across all three.</p></li><li><p style=\"min-height:1.5em\">Thrive in high-trust environments, bring rigor and systems thinking to ambiguity, and operate with a bias for aligned execution over org boundaries.</p></li><li><p style=\"min-height:1.5em\">Are structured, detail-oriented, and rigorous in ensuring quality, accountability, and durable delivery.</p></li><li><p style=\"min-height:1.5em\">Have a proven record of success driving highly cross-functional efforts across engineering, infrastructure, legal, compliance, and product stakeholders.</p></li></ul><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\"><strong>About OpenAI</strong></p><p style=\"min-height:1.5em\">OpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. </p><p style=\"min-height:1.5em\">We are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. </p><p style=\"min-height:1.5em\">For additional information, please see <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"c-link c-link--underline\" href=\"https://cdn.openai.com/policies/eeo-policy-statement.pdf\"><u>OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement</u></a>.</p><p style=\"min-height:1.5em\">Background checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.</p><p style=\"min-height:1.5em\">To notify OpenAI that you believe this job posting is non-compliant, please submit a report through <a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://form.asana.com/?d=57018692298241&amp;k=5MqR40fZd7jlxVUh5J-UeA\">this form</a>. No response will be provided to inquiries unrelated to job posting compliance.</p><p style=\"min-height:1.5em\">We are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"c-link c-link--underline\" href=\"https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&amp;d=57018692298241\"><u>link</u></a>.</p><p style=\"min-height:1.5em\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" class=\"c-link\" href=\"https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\">OpenAI Global Applicant Privacy Policy</a></p><p style=\"min-height:1.5em\">At OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology.</p>",
+   "descriptionPlain": "About the Team\n\nOpenAI builds powerful AI systems like ChatGPT, the OpenAI API, and enterprise products that serve millions of users across the globe. As we scale, securing our infrastructure, protecting sensitive data, and meeting global compliance standards are essential to our success and societal impact.\n\n\n\nSecurity at OpenAI is a cross-cutting function that spans infrastructure, applied engineering, legal, policy, and product. Technical Program Managers (TPMs) play a critical leadership role in aligning teams and delivering execution at scale and this role will be foundational in shaping how we secure OpenAI’s systems, users, and commitments.\n\n\n\nAbout the Role\n\nWe’re seeking a Senior Technical Program Manager to drive cross-functional security, privacy, IT and compliance initiatives at the intersection of infrastructure, product, and policy. You will execute complex programs that reduce internal data access, prevent misuse, and ship security capabilities. You will focus your efforts on the most critical initiatives within Security, crossing the spectrum of insider threat, information security, physical security, and information technology challenges.\n\n\n\nThis role is deeply technical and execution-focused. It requires a structured operator who thrives in ambiguity, partners effectively across boundaries, and applies principled judgment to scale trust, governance, and security across OpenAI’s systems and products.\n\n\n\nIn this role, you will:\n\n - Drive execution of critical security and compliance programs such as vulnerability management, merger and acquisition security and integration, infrastructure hardening, and datacenter security management. You will need to deeply collaborate on technical architecture and resolve technical problems in partnership with engineering.\n\n - Partner with IT, Infrastructure, Application, Legal, Privacy, and Security teams to build scalable programs, and deliver critical security outcomes across multiple disciplines, including insider threat, information security, physical security, and information technology.\n\n - Establish scalable frameworks and build programs around critical security initiatives including vulnerability management, evidence collection, incident response coordination, supply chain risk management, and device security.\n\n - Track and enforce OpenAI’s privacy and security requirements by translating commitments into engineering milestones and driving their full implementation across systems.\n\n - Create and maintain program-level visibility across risk areas, security milestones, and cross-org dependencies—ensuring outcomes are delivered reliably and at high quality.\n\n - Communicate status, risks, tradeoffs, and decisions clearly to technical and executive audiences and drive cross-functional execution with urgency and care.\n\n\nYOU MIGHT THRIVE IN THIS ROLE IF YOU:\n\n - Are an empathetic communicator and leader—able to influence across technical and non-technical audiences, and build durable trust with partners.\n\n - Have 5+ years of experience leading complex technical programs focused on infrastructure security, data privacy, compliance, or enterprise platform capabilities.\n\n - Are deeply fluent in the intersection of engineering systems, security controls, and regulatory expectations—and are able to bring clarity and structure across all three.\n\n - Thrive in high-trust environments, bring rigor and systems thinking to ambiguity, and operate with a bias for aligned execution over org boundaries.\n\n - Are structured, detail-oriented, and rigorous in ensuring quality, accountability, and durable delivery.\n\n - Have a proven record of success driving highly cross-functional efforts across engineering, infrastructure, legal, compliance, and product stakeholders.\n\n\n\nAbout OpenAI\n\nOpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. \n\nWe are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. \n\nFor additional information, please see OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement https://cdn.openai.com/policies/eeo-policy-statement.pdf.\n\nBackground checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.\n\nTo notify OpenAI that you believe this job posting is non-compliant, please submit a report through this form https://form.asana.com/?d=57018692298241&k=5MqR40fZd7jlxVUh5J-UeA. No response will be provided to inquiries unrelated to job posting compliance.\n\nWe are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this link https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&d=57018692298241.\n\nOpenAI Global Applicant Privacy Policy https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\n\nAt OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology.",
+   "compensation": {
+    "compensationTierSummary": "$165.4K – $285K • Offers Equity • Multiple Ranges",
+    "scrapeableCompensationSalarySummary": "$165.4K - $285K",
+    "compensationTiers": [
+     {
+      "id": "d3899e1f-0c22-4daa-86f9-4f1d9fc0c032",
+      "tierSummary": "$207K – $285K • Offers Equity",
+      "title": "San Francisco, Seattle or New York",
+      "additionalInformation": null,
+      "components": [
+       {
+        "id": "8b7496ef-c885-44be-894b-ae98047dff98",
+        "summary": "Offers Equity",
+        "compensationType": "EquityCashValue",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": null,
+        "maxValue": null
+       },
+       {
+        "id": "bf8e2028-26db-4c3e-b6cd-1831f91effb5",
+        "summary": "$207K – $285K",
+        "compensationType": "Salary",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": 207000,
+        "maxValue": 285000
+       }
+      ]
+     },
+     {
+      "id": "d44602e0-d1e4-4d2e-807f-1da70c1a99f2",
+      "tierSummary": "$186.3K – $256.5K • Offers Equity",
+      "title": "Zone A",
+      "additionalInformation": null,
+      "components": [
+       {
+        "id": "123a301d-8c65-45e3-9193-9bcda07f7fc8",
+        "summary": "Offers Equity",
+        "compensationType": "EquityCashValue",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": null,
+        "maxValue": null
+       },
+       {
+        "id": "22e704e2-45ad-4148-a7dd-c9cbe37292db",
+        "summary": "$186.3K – $256.5K",
+        "compensationType": "Salary",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": 186300,
+        "maxValue": 256500
+       }
+      ]
+     },
+     {
+      "id": "a071c99d-1ec8-4b84-8376-615609c7e3bc",
+      "tierSummary": "$165.4K – $228K • Offers Equity",
+      "title": "Zone B",
+      "additionalInformation": null,
+      "components": [
+       {
+        "id": "99c8d552-5386-42fa-bc6d-4974a02c4368",
+        "summary": "Offers Equity",
+        "compensationType": "EquityCashValue",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": null,
+        "maxValue": null
+       },
+       {
+        "id": "7f4b6a00-6aed-4754-a108-32965d99a494",
+        "summary": "$165.4K – $228K",
+        "compensationType": "Salary",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": 165400,
+        "maxValue": 228000
+       }
+      ]
+     }
+    ],
+    "summaryComponents": [
+     {
+      "compensationType": "EquityCashValue",
+      "minValue": null,
+      "maxValue": null,
+      "interval": "1 YEAR"
+     },
+     {
+      "minValue": 165400,
+      "maxValue": 285000,
+      "currencyCode": "USD",
+      "interval": "1 YEAR",
+      "compensationType": "Salary"
+     }
+    ]
+   }
+  },
+  {
+   "id": "2250282b-7f1a-43e6-bf55-e603cbf0fd89",
+   "title": "Wireless Regulatory Engineer - SAR",
+   "department": "Consumer Devices",
+   "team": "Hardware Engineering",
+   "employmentType": "FullTime",
+   "location": "Mountain View",
+   "shouldDisplayCompensationOnJobPostings": true,
+   "secondaryLocations": [
+    {
+     "location": "San Francisco",
+     "address": {
+      "postalAddress": {
+       "addressRegion": "California",
+       "addressCountry": "United States",
+       "addressLocality": "San Francisco"
+      }
+     }
+    }
+   ],
+   "publishedAt": "2026-09-25T20:12:07.571+00:00",
+   "isListed": true,
+   "isRemote": false,
+   "workplaceType": "OnSite",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "California",
+     "addressCountry": "United States",
+     "addressLocality": "Mountain View"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/openai/2250282b-7f1a-43e6-bf55-e603cbf0fd89",
+   "applyUrl": "https://jobs.ashbyhq.com/openai/2250282b-7f1a-43e6-bf55-e603cbf0fd89/application",
+   "descriptionHtml": "<h1>Wireless Regulatory Engineer – SAR</h1><p style=\"min-height:1.5em\"></p><h2>About the Team</h2><p style=\"min-height:1.5em\">The Consumer Devices team at OpenAI builds products that bring advanced AI capabilities into thoughtfully designed consumer experiences. We work across hardware, software, design, and research to develop reliable products from early exploration through production.</p><p style=\"min-height:1.5em\"></p><h2>About the Role</h2><p style=\"min-height:1.5em\">We’re looking for a Wireless Regulatory Engineer to support RF exposure compliance for consumer hardware. You’ll work closely with RF, antenna, hardware, software, and regulatory teams throughout the product development lifecycle, helping ensure products meet applicable requirements while maintaining a high bar for performance and user experience.</p><p style=\"min-height:1.5em\"><strong>This role is based in Mountain View, CA. We use a hybrid work model of four days in the office per week and offer relocation assistance to new employees.</strong></p><p style=\"min-height:1.5em\"></p><h2>In this role, you will:</h2><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Develop and execute RF exposure test and validation strategies for consumer wireless products.</p></li><li><p style=\"min-height:1.5em\">Partner with engineering teams to evaluate product designs and identify potential compliance risks throughout development.</p></li><li><p style=\"min-height:1.5em\">Perform and analyze RF exposure measurements and communicate findings clearly to cross-functional teams.</p></li><li><p style=\"min-height:1.5em\">Support product development from early prototypes through validation, certification, and production.</p></li><li><p style=\"min-height:1.5em\">Coordinate testing with external laboratories and review results and supporting documentation.</p></li><li><p style=\"min-height:1.5em\">Translate applicable regulatory requirements into practical engineering guidance.</p></li><li><p style=\"min-height:1.5em\">Partner with RF and antenna teams to balance regulatory requirements with product performance.</p></li><li><p style=\"min-height:1.5em\">Develop tools and workflows that improve testing efficiency, consistency, and data analysis.</p></li><li><p style=\"min-height:1.5em\">Investigate issues, identify root causes, and work with engineering teams to develop effective solutions.</p></li><li><p style=\"min-height:1.5em\">Support global regulatory certification activities for wireless consumer products.</p></li></ul><p style=\"min-height:1.5em\"></p><h2>You might thrive in this role if you:</h2><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Have a Master’s degree or equivalent experience in Electrical Engineering, Computer Engineering, RF Engineering, or a related technical field.</p></li><li><p style=\"min-height:1.5em\">Bring deep experience with SAR, RF exposure, or wireless regulatory testing.</p></li><li><p style=\"min-height:1.5em\">Have a strong understanding of RF fundamentals, measurement techniques, and wireless systems.</p></li><li><p style=\"min-height:1.5em\">Have experience translating regulatory requirements into engineering and product decisions.</p></li><li><p style=\"min-height:1.5em\">Are comfortable performing hands-on testing, analyzing complex measurement data, and troubleshooting hardware systems.</p></li><li><p style=\"min-height:1.5em\">Have experience working with external test laboratories and supporting product certification.</p></li><li><p style=\"min-height:1.5em\">Collaborate effectively across RF, antenna, hardware, software, manufacturing, and operations teams.</p></li><li><p style=\"min-height:1.5em\">Are comfortable working in fast-moving, ambiguous product development environments.</p></li></ul><p style=\"min-height:1.5em\"></p><h2>Minimum Qualifications</h2><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Experience in SAR, RF exposure, wireless regulatory engineering, or a closely related field.</p></li><li><p style=\"min-height:1.5em\">Experience supporting consumer hardware from prototype through mass production.</p></li><li><p style=\"min-height:1.5em\">Experience with wireless products incorporating multiple radios and connectivity technologies.</p></li></ul><h2>Preferred Qualifications </h2><ul style=\"min-height:1.5em\"><li><p style=\"min-height:1.5em\">Experience developing test automation or data-analysis tools.</p></li><li><p style=\"min-height:1.5em\">Experience supporting regulatory approvals across multiple global markets.</p></li><li><p style=\"min-height:1.5em\">Experience working on products that integrate hardware, firmware, and software.</p></li></ul><h2>About OpenAI</h2><p style=\"min-height:1.5em\">OpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity.</p><p style=\"min-height:1.5em\">We are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic.</p><p style=\"min-height:1.5em\"></p><p style=\"min-height:1.5em\"><strong>About OpenAI</strong></p><p style=\"min-height:1.5em\">OpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. </p><p style=\"min-height:1.5em\">We are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. </p><p style=\"min-height:1.5em\">For additional information, please see <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"c-link c-link--underline\" href=\"https://cdn.openai.com/policies/eeo-policy-statement.pdf\"><u>OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement</u></a>.</p><p style=\"min-height:1.5em\">Background checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.</p><p style=\"min-height:1.5em\">To notify OpenAI that you believe this job posting is non-compliant, please submit a report through <a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://form.asana.com/?d=57018692298241&amp;k=5MqR40fZd7jlxVUh5J-UeA\">this form</a>. No response will be provided to inquiries unrelated to job posting compliance.</p><p style=\"min-height:1.5em\">We are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this <a target=\"_blank\" rel=\"noopener noreferrer\" class=\"c-link c-link--underline\" href=\"https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&amp;d=57018692298241\"><u>link</u></a>.</p><p style=\"min-height:1.5em\"><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" class=\"c-link\" href=\"https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\">OpenAI Global Applicant Privacy Policy</a></p><p style=\"min-height:1.5em\">At OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology.</p>",
+   "descriptionPlain": "WIRELESS REGULATORY ENGINEER – SAR\n\n\n\n\nABOUT THE TEAM\n\nThe Consumer Devices team at OpenAI builds products that bring advanced AI capabilities into thoughtfully designed consumer experiences. We work across hardware, software, design, and research to develop reliable products from early exploration through production.\n\n\n\n\nABOUT THE ROLE\n\nWe’re looking for a Wireless Regulatory Engineer to support RF exposure compliance for consumer hardware. You’ll work closely with RF, antenna, hardware, software, and regulatory teams throughout the product development lifecycle, helping ensure products meet applicable requirements while maintaining a high bar for performance and user experience.\n\nThis role is based in Mountain View, CA. We use a hybrid work model of four days in the office per week and offer relocation assistance to new employees.\n\n\n\n\nIN THIS ROLE, YOU WILL:\n\n - Develop and execute RF exposure test and validation strategies for consumer wireless products.\n\n - Partner with engineering teams to evaluate product designs and identify potential compliance risks throughout development.\n\n - Perform and analyze RF exposure measurements and communicate findings clearly to cross-functional teams.\n\n - Support product development from early prototypes through validation, certification, and production.\n\n - Coordinate testing with external laboratories and review results and supporting documentation.\n\n - Translate applicable regulatory requirements into practical engineering guidance.\n\n - Partner with RF and antenna teams to balance regulatory requirements with product performance.\n\n - Develop tools and workflows that improve testing efficiency, consistency, and data analysis.\n\n - Investigate issues, identify root causes, and work with engineering teams to develop effective solutions.\n\n - Support global regulatory certification activities for wireless consumer products.\n\n\n\n\nYOU MIGHT THRIVE IN THIS ROLE IF YOU:\n\n - Have a Master’s degree or equivalent experience in Electrical Engineering, Computer Engineering, RF Engineering, or a related technical field.\n\n - Bring deep experience with SAR, RF exposure, or wireless regulatory testing.\n\n - Have a strong understanding of RF fundamentals, measurement techniques, and wireless systems.\n\n - Have experience translating regulatory requirements into engineering and product decisions.\n\n - Are comfortable performing hands-on testing, analyzing complex measurement data, and troubleshooting hardware systems.\n\n - Have experience working with external test laboratories and supporting product certification.\n\n - Collaborate effectively across RF, antenna, hardware, software, manufacturing, and operations teams.\n\n - Are comfortable working in fast-moving, ambiguous product development environments.\n\n\n\n\nMINIMUM QUALIFICATIONS\n\n - Experience in SAR, RF exposure, wireless regulatory engineering, or a closely related field.\n\n - Experience supporting consumer hardware from prototype through mass production.\n\n - Experience with wireless products incorporating multiple radios and connectivity technologies.\n\n\nPREFERRED QUALIFICATIONS \n\n - Experience developing test automation or data-analysis tools.\n\n - Experience supporting regulatory approvals across multiple global markets.\n\n - Experience working on products that integrate hardware, firmware, and software.\n\n\nABOUT OPENAI\n\nOpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity.\n\nWe are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic.\n\n\n\nAbout OpenAI\n\nOpenAI is an AI research and deployment company dedicated to ensuring that general-purpose artificial intelligence benefits all of humanity. We push the boundaries of the capabilities of AI systems and seek to safely deploy them to the world through our products. AI is an extremely powerful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices, and experiences that form the full spectrum of humanity. \n\nWe are an equal opportunity employer, and we do not discriminate on the basis of race, religion, color, national origin, sex, sexual orientation, age, veteran status, disability, genetic information, or other applicable legally protected characteristic. \n\nFor additional information, please see OpenAI’s Affirmative Action and Equal Employment Opportunity Policy Statement https://cdn.openai.com/policies/eeo-policy-statement.pdf.\n\nBackground checks for applicants will be administered in accordance with applicable law, and qualified applicants with arrest or conviction records will be considered for employment consistent with those laws, including the San Francisco Fair Chance Ordinance, the Los Angeles County Fair Chance Ordinance for Employers, and the California Fair Chance Act, for US-based candidates. For unincorporated Los Angeles County workers: we reasonably believe that criminal history may have a direct, adverse and negative relationship with the following job duties, potentially resulting in the withdrawal of a conditional offer of employment: protect computer hardware entrusted to you from theft, loss or damage; return all computer hardware in your possession (including the data contained therein) upon termination of employment or end of assignment; and maintain the confidentiality of proprietary, confidential, and non-public information. In addition, job duties require access to secure and protected information technology systems and related data security obligations.\n\nTo notify OpenAI that you believe this job posting is non-compliant, please submit a report through this form https://form.asana.com/?d=57018692298241&k=5MqR40fZd7jlxVUh5J-UeA. No response will be provided to inquiries unrelated to job posting compliance.\n\nWe are committed to providing reasonable accommodations to applicants with disabilities, and requests can be made via this link https://form.asana.com/?k=bQ7w9h3iexRlicUdWRiwvg&d=57018692298241.\n\nOpenAI Global Applicant Privacy Policy https://cdn.openai.com/policies/global-employee-and-contractor-privacy-policy.pdf\n\nAt OpenAI, we believe artificial intelligence has the potential to help people solve immense global challenges, and we want the upside of AI to be widely shared. Join us in shaping the future of technology.",
+   "compensation": {
+    "compensationTierSummary": "$318K – $423K • Offers Equity",
+    "scrapeableCompensationSalarySummary": "$318K - $423K",
+    "compensationTiers": [
+     {
+      "id": "df1ca5dc-2f12-4e6b-9f20-2d0b1435f9d4",
+      "tierSummary": "$318K – $423K • Offers Equity",
+      "title": null,
+      "additionalInformation": null,
+      "components": [
+       {
+        "id": "7c313e05-d402-4a54-9840-cc9cf90eff73",
+        "summary": "Offers Equity",
+        "compensationType": "EquityCashValue",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": null,
+        "maxValue": null
+       },
+       {
+        "id": "3b7c9abc-a58f-4944-9b98-a763c7e5bd53",
+        "summary": "$318K – $423K",
+        "compensationType": "Salary",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": 318000,
+        "maxValue": 423000
+       }
+      ]
+     }
+    ],
+    "summaryComponents": [
+     {
+      "compensationType": "EquityCashValue",
+      "interval": "1 YEAR",
+      "currencyCode": "USD",
+      "minValue": null,
+      "maxValue": null
+     },
+     {
+      "compensationType": "Salary",
+      "interval": "1 YEAR",
+      "currencyCode": "USD",
+      "minValue": 318000,
+      "maxValue": 423000
+     }
+    ]
+   }
+  }
+ ],
+ "apiVersion": "1"
+}

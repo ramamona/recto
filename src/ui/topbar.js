@@ -4,6 +4,7 @@ import { h, uid } from './dom.js'
 import { openFile, saveFile, download, fontsToBase64, base64ToBlob } from '../io/files.js'
 import { loadFonts, saveFont, registerFonts } from '../io/storage.js'
 import { toJsonResume, fromJsonResume } from '../io/jsonresume.js'
+import { toLatex } from '../io/latex.js'
 import { fromPlainText } from '../io/plaintext.js'
 import { extractText } from '../preflight/ats.js'
 import { loadTemplates } from '../model/templates.js'
@@ -182,6 +183,12 @@ export function mountTopbar(root, store, ctx) {
       toastWarnings(warnings.map(w => t(`jsonresume.${w.code}`, w.vars)))
     } catch (err) { failed(err) }
   }
+  const exportTex = () => {
+    try {
+      const { doc, layout } = store.state
+      download(`${base()}.tex`, toLatex(doc, layout, { name: base() }), 'application/x-tex')
+    } catch (err) { failed(err) }
+  }
   const exportFile = () => containerText().then(text => download(`${base()}.cv.json`, text, 'application/json'), failed)
 
   function print() {
@@ -238,6 +245,7 @@ export function mountTopbar(root, store, ctx) {
   const [exportBtn, exportMenu] = menu(t('app.export'), () => [
     { text: t('app.export.pdf'), action: 'export-pdf', kbd: t('app.kbd.print'), run: print },
     { text: t('app.export.txt'), action: 'export-txt', run: exportTxt },
+    { text: t('app.export.tex'), action: 'export-tex', run: exportTex },
     { text: t('app.export.jsonresume'), action: 'export-jsonresume', run: exportJsonResume },
     { text: t('app.export.cv'), action: 'export-cv', run: exportFile },
   ])
@@ -253,6 +261,8 @@ export function mountTopbar(root, store, ctx) {
   const starChip = chip('score-chip', 'job')
   const status = h('span', { class: 'app-status ui-muted' })
   const jobsBtn = btn('jobs', t('jobs.button'), () => ctx.openJobsDialog?.())
+  const discoverBtn = btn('discover', t('discover.button'), () => ctx.openDiscover?.())
+  const profileBtn = btn('profile', t('profile.button'), () => ctx.openProfileDialog?.())
   const aiBtn = btn('ai', '', () => ctx.openAiDialog?.(), { class: 'ui-btn ui-btn--ghost app-ai' })
   const aiLabel = () => {
     aiBtn.textContent = aiBtn.title = ctx.ai?.label() ?? t('ai.button')
@@ -273,7 +283,7 @@ export function mountTopbar(root, store, ctx) {
     h('span', { class: 'ui-sep' }),
     undo, redo,
     h('span', { class: 'ui-spacer' }),
-    jobsBtn, aiBtn,
+    profileBtn, discoverBtn, jobsBtn, aiBtn,
     h('span', { class: 'ui-sep' }),
     atsChip, matchChip, starChip, status, themeBtn,
   )

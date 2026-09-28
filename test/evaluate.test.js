@@ -94,6 +94,14 @@ test('no visa sponsorship with a profile outside the country → ⛔ and capped 
   assert.equal(ev(STRONG, sponsors, { profile }).gates.workAuth.tier, 'sponsors')
 })
 
+test('work rights use the country presets: a state or city counts as the country', () => {
+  const profile = { authorizedIn: ['Australia'], needsSponsorship: true }
+  assert.equal(ev(STRONG, { ...FIT, location: 'Sydney, NSW' }, { profile }).gates.workAuth.tier, 'not-needed')
+  assert.equal(ev(STRONG, { ...FIT, location: 'Seattle, WA' }, { profile }).gates.workAuth.tier, 'unstated')
+  assert.equal(ev(STRONG, { ...FIT, location: 'Remote, Melbourne VIC' }, { profile: { authorizedIn: ['AU'], needsSponsorship: true } }).gates.workAuth.tier, 'not-needed')
+  assert.equal(ev(STRONG, { ...FIT, location: 'London, UK' }, { profile: { authorizedIn: ['uk'], needsSponsorship: true } }).gates.workAuth.tier, 'not-needed')
+})
+
 test('empty profile skips work-auth and deal-breaker gates (never guessed)', () => {
   const job = { ...FIT, text: FIT.text + '\nNo visa sponsorship. 24/7 on-call rotation.' }
   for (const profile of [undefined, {}, { authorizedIn: [], needsSponsorship: false, dealBreakers: [] }]) {
@@ -159,4 +167,24 @@ test('never throws on empty input', () => {
   assert.deepEqual(r.rows, [])
   assert.ok(r.score >= 1 && r.score <= 5)
   assert.equal(r.role.archetype, 'other')
+})
+
+test('a job in a field the CV never worked in is capped (role-mismatch)', () => {
+  const source = '# Jane\nSenior Software Engineer\njane@x.dev\n## Experience\n### Software Engineer | Acme | 2020 – Present\n- Built APIs in Go and TypeScript\n- Strong communication with stakeholders\n'
+  const job = { title: 'Account Executive', text: 'Account Executive\nRequirements\n- Strong communication\n- Work with stakeholders\n- Go-getter attitude' }
+  const e = evaluateJob({ source, doc: parse(source) }, job, { now: new Date('2026-09-28') })
+  assert.ok(e.caps.includes('role-mismatch'))
+  assert.ok(e.score <= 2.5)
+  assert.equal(e.recommendation, 'skip')
+  const eng = evaluateJob({ source, doc: parse(source) }, { title: 'Backend Engineer', text: 'Backend Engineer\nRequirements\n- Go\n- TypeScript' }, { now: new Date('2026-09-28') })
+  assert.ok(!eng.caps.includes('role-mismatch'))
+})
+
+test('role mismatch: an accounting manager role is capped for an engineering CV', async () => {
+  const { evaluateJob } = await import('../src/jobs/evaluate.js')
+  const source = '# Sam Lee\nSoftware Engineer\n\n## Experience\n### Software Engineer | Acme | 2020 – Present\n- Built APIs in TypeScript and Go'
+  const job = { title: 'Corporate Accounting Manager', company: 'Canva', location: 'Sydney, Australia', text: 'Corporate Accounting Manager\nRequirements:\n- Strong communication\n- Attention to detail\n- Experience with TypeScript' }
+  const ev = evaluateJob({ source }, job, { now: new Date('2026-09-28') })
+  assert.ok(ev.caps.includes('role-mismatch'))
+  assert.ok(ev.score <= 2.5)
 })

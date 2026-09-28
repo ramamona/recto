@@ -1,14 +1,19 @@
 // Zero-dependency static server for Recto. Also used by the CLI and smoke test.
 import http from 'node:http'
+import { spawn as spawnChild } from 'node:child_process'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import https from 'node:https'
 import net from 'node:net'
 import { lookup as dnsLookup } from 'node:dns/promises'
 import { realpathSync } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
-import { dirname, extname, isAbsolute, resolve, sep } from 'node:path'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path'
+import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { extractHtml } from './src/io/extract.js'
+import { bundleError } from './cli/autoapply.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -177,10 +182,130 @@ async function proxyFetch(req, res, { lookup, fetch }) {
   }
 }
 
-/** `lookup(host) → [{ address, family }]` and `fetch` are injectable for tests; /api/fetch exists only on a loopback bind. */
-export function createServer({ root = HERE, extra = {}, lookup = defaultLookup, fetch = pinnedFetch(lookup) } = {}) {
+// ---- /api/apply: bridge from the app's apply queue to `recto autoapply` (career-suite spec §4). Trust boundary:
+// loopback bind + loopback Host + same-origin + per-process token + JSON + 5 MB cap + one run at a time.
+
+const APPLY_CAP = 5 * 1024 * 1024
+const CLI = join(HERE, 'cli', 'recto.js')
+
+// Browsers always send Origin on cross-origin POSTs and Sec-Fetch-Site on every fetch; neither can be forged by a page
+function sameOrigin(req) {
+  const origin = req.headers.origin
+  if (origin) return origin === `http://${req.headers.host}`
+  return req.headers['sec-fetch-site'] === 'same-origin'
+}
+
+function readBody(req, cap) {
+  return new Promise(resolvePromise => {
+    if (Number(req.headers['content-length']) > cap) return resolvePromise(null)
+    const chunks = []
+    let size = 0
+    req.on('data', c => {
+      size += c.length
+      if (size > cap) { req.removeAllListeners('data'); req.resume(); return resolvePromise(null) }
+      chunks.push(c)
+    })
+    req.on('end', () => resolvePromise(size > cap ? null : Buffer.concat(chunks).toString('utf8')))
+    req.on('error', () => resolvePromise(null))
+  })
+}
+
+function applyBridge(spawn) {
+  const token = randomBytes(24).toString('hex')
+  let starting = false // set synchronously so two concurrent POSTs cannot both pass the one-run check
+  let run = null // { child, jobs: [{ id, title, company, state, reason }], waiting, running, stopped, summary, exitCode, dir }
+
+  const tokenOk = req => {
+    const got = Buffer.from(String(req.headers['x-recto-token'] ?? ''))
+    return got.length === token.length && timingSafeEqual(got, Buffer.from(token))
+  }
+  const view = () => run && {
+    running: run.running, stopped: run.stopped, waiting: run.waiting, summary: run.summary, exitCode: run.exitCode,
+    jobs: run.jobs.map(j => ({ ...j }))
+  }
+
+  function onEvent(line) {
+    let e
+    try { e = JSON.parse(line) } catch { return }
+    const job = run.jobs.find(j => j.id === e?.id)
+    if (e?.type === 'job' && job && typeof e.state === 'string') {
+      job.state = e.state
+      if (e.reason) job.reason = String(e.reason)
+      else delete job.reason
+    } else if (e?.type === 'wait' && job) {
+      job.state = 'waiting-for-you'
+      run.waiting = job.id
+    } else if (e?.type === 'done') run.summary = e.summary ?? {}
+  }
+
+  async function start(bundle) {
+    const dir = await mkdtemp(join(tmpdir(), 'recto-apply-'))
+    const file = join(dir, 'recto-apply.json')
+    await writeFile(file, JSON.stringify(bundle))
+    const args = [CLI, 'autoapply', '--bundle', file, '--progress-json', ...(bundle.mode === 'submit' ? ['--submit'] : [])]
+    // args array, no shell: nothing the page sends reaches a command line except as the bundle file's content
+    const child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'inherit'] })
+    const current = run = {
+      child, dir, running: true, stopped: false, waiting: null, summary: null, exitCode: null,
+      jobs: bundle.jobs.map(j => ({ id: String(j.id ?? ''), title: String(j.title ?? ''), company: String(j.company ?? ''), state: 'queued' }))
+    }
+    createInterface({ input: child.stdout }).on('line', line => onEvent(line))
+    child.stdin.on('error', () => {})
+    const end = code => {
+      if (!current.running) return
+      Object.assign(current, { running: false, waiting: null, exitCode: code })
+      rm(dir, { recursive: true, force: true }).catch(() => {})
+    }
+    child.on('close', end)
+    child.on('error', () => end(null))
+  }
+
+  return async (req, res, path) => {
+    const reply = (status, body) => send(req, res, status, JSON.stringify(body), 'application/json; charset=utf-8')
+    if (!hostIsLoopback(req.headers.host) || !sameOrigin(req)) return reply(403, { error: 'forbidden' })
+    if (req.method === 'GET' && path === '/api/apply') return reply(200, { bridge: true, token })
+    if (!tokenOk(req)) return reply(403, { error: 'bad-token' })
+    if (req.method === 'GET' && path === '/api/apply/status') return reply(200, view() ?? { running: false, jobs: [] })
+    if (req.method !== 'POST') return reply(405, { error: 'method' })
+    if ((req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') return reply(415, { error: 'json-only' })
+    const text = await readBody(req, APPLY_CAP)
+    if (text === null) return reply(413, { error: 'too-large' })
+    let body
+    try { body = JSON.parse(text) } catch { return reply(400, { error: 'bad-json' }) }
+    if (path === '/api/apply') {
+      if (starting || run?.running) return reply(409, { error: 'running' })
+      const bundle = { format: 'recto-apply', version: 1, ...body }
+      const problem = bundleError(bundle)
+      if (problem) return reply(400, { error: 'bad-bundle', message: problem })
+      starting = true
+      try { await start(bundle) } catch { return reply(500, { error: 'start-failed' }) } finally { starting = false }
+      return reply(202, { started: true, jobs: bundle.jobs.length })
+    }
+    if (path === '/api/apply/continue') {
+      if (!run?.running || !run.waiting) return reply(409, { error: 'not-waiting' })
+      if (typeof body?.submitted !== 'boolean') return reply(400, { error: 'submitted-boolean' })
+      run.child.stdin.write(body.submitted ? 'y\n' : 'n\n')
+      run.waiting = null
+      return reply(200, { ok: true })
+    }
+    if (path === '/api/apply/stop') {
+      if (!run?.running) return reply(409, { error: 'not-running' })
+      run.stopped = true
+      run.child.kill()
+      return reply(200, { ok: true })
+    }
+    return reply(404, { error: 'not-found' })
+  }
+}
+
+/** `lookup(host) → [{ address, family }]`, `fetch` and `spawn` (child_process.spawn) are injectable for tests;
+ * /api/fetch and /api/apply exist only on a loopback bind. */
+export function createServer({ root = HERE, extra = {}, lookup = defaultLookup, fetch = pinnedFetch(lookup), spawn = spawnChild } = {}) {
   const base = resolve(root)
+  const bridge = applyBridge(spawn)
   const server = http.createServer(async (req, res) => {
+    const route = req.url.split(/[?#]/)[0]
+    if (/^\/api\/apply(\/(status|continue|stop))?$/.test(route) && isLoopbackIp(server.address()?.address ?? '')) return bridge(req, res, route)
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(req, res, 405, 'Method Not Allowed', undefined, { Allow: 'GET, HEAD' })
     const path = req.url.split(/[?#]/)[0]
     if (!path.startsWith('/')) return send(req, res, 400, 'Bad Request')

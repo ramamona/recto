@@ -65,6 +65,17 @@ export function gateBanners(gates) {
   return out
 }
 
+/** New document holding `letter` in the open CV's look (becomes the open doc); returns its id. */
+export function addCoverLetterDoc(store, letter, name) {
+  const { content, doc, layout } = store.state
+  store.newDoc()
+  store.setContent(coverLetterDoc(content, doc, letter))
+  // same look as the CV; its per-section config belongs to the CV's sections
+  store.setLayout(Object.entries(layout).filter(([k]) => k !== 'sections').map(([k, value]) => ({ path: [k], value })))
+  store.renameDoc(name)
+  return store.state.docId
+}
+
 const bandClass = score => score >= 75 ? 'is-good' : score >= 50 ? 'is-fair' : 'is-poor'
 
 export function mountJobPanel(root, store, ctx) {
@@ -89,7 +100,7 @@ export function mountJobPanel(root, store, ctx) {
   root.replaceChildren(h('div', { class: 'job-panel' },
     h('div', { class: 'job-form' }, input, h('div', { class: 'job-form__bar' }, analyzeBtn,
       h('button', { type: 'button', class: 'job-profile-link', onClick: () => ctx.openProfileDialog() }, t('eval.profile')))), out))
-  ctx.openProfileDialog = () => openProfileDialog(ctx, { onSave: () => job && render() })
+  ctx.openProfileDialog = () => openProfileDialog(ctx, { doc: store.state.doc, onSave: () => job && render() })
 
   // ---------- helpers ----------
 
@@ -222,15 +233,8 @@ export function mountJobPanel(root, store, ctx) {
   const coverLetter = () => run('job.busy.letter', async signal => {
     if (!(await aiReady())) return
     const letter = await assist(signal).coverLetter(promptJob())
-    const { content, doc, layout } = store.state
-    const name = cvName()
     const id = ensureSaved()
-    store.newDoc()
-    store.setContent(coverLetterDoc(content, doc, letter))
-    // same look as the CV; its per-section config belongs to the CV's sections
-    store.setLayout(Object.entries(layout).filter(([k]) => k !== 'sections').map(([k, value]) => ({ path: [k], value })))
-    store.renameDoc(`${name} — ${t('job.letter.name')} — ${companyOf()}`)
-    ctx.tracker.link(id, store.state.docId)
+    ctx.tracker.link(id, addCoverLetterDoc(store, letter, `${cvName()} — ${t('job.letter.name')} — ${companyOf()}`))
     ctx.toast?.(t('job.letter.done'))
   })
 
@@ -385,7 +389,8 @@ export function mountJobPanel(root, store, ctx) {
     out.replaceChildren(...[status, jobCard(),
       h('div', { class: 'job-actions' },
         button(t('eval.refine'), evaluate), button(t('job.tailor'), tailor),
-        button(t('job.letter'), coverLetter), button(t('job.save'), saveToTracker, 'ui-btn--primary')),
+        button(t('job.letter'), coverLetter), button(t('job.save'), saveToTracker, 'ui-btn--primary'),
+        ctx.openPack && button(t('pack.prepare'), () => ctx.openPack(ensureSaved()))),
       evaluationView(ev), matchView(m), legitView(ev.legitimacy)].flat(Infinity).filter(Boolean))
     for (const b of out.querySelectorAll('.job-actions button, .job-card__bar button')) b.disabled = !!busy
   }

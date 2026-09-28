@@ -1,7 +1,7 @@
 // Minimal Chrome DevTools Protocol driver over --remote-debugging-pipe (stdlib only).
 import { spawn } from 'node:child_process'
 import { accessSync, constants } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 
@@ -17,10 +17,12 @@ const FLAGS = [
 
 const LOAD_TIMEOUT = 30000
 
-/** Launch flags: base flags plus --no-sandbox on GitHub Actions Ubuntu (AppArmor blocks the sandbox there). */
-export function chromeArgs({ platform = process.platform, env = process.env, extra = [] } = {}) {
+/** Launch flags: base flags plus --no-sandbox on GitHub Actions Ubuntu (AppArmor blocks the sandbox there).
+ * `headless: false` opens a visible window (autoapply). */
+export function chromeArgs({ platform = process.platform, env = process.env, extra = [], headless = true } = {}) {
   const noSandbox = platform === 'linux' && !!env.CI
-  return [...FLAGS, ...(noSandbox ? ['--no-sandbox'] : []), ...extra]
+  const flags = headless ? FLAGS : FLAGS.filter(f => f !== '--headless=new' && f !== '--hide-scrollbars')
+  return [...flags, ...(noSandbox ? ['--no-sandbox'] : []), ...extra]
 }
 
 function withTimeout(promise, ms) {
@@ -63,10 +65,12 @@ export function countPdfPages(buf) {
   return (buf.toString('latin1').match(/\/Type\s*\/Page(?![A-Za-z])/g) ?? []).length
 }
 
-export async function launch({ executable = findChrome(), args = [] } = {}) {
+/** `userDataDir` keeps a persistent profile (never deleted); without it a temporary one is removed on close. */
+export async function launch({ executable = findChrome(), args = [], headless = true, userDataDir } = {}) {
   if (!executable) throw new Error('Chrome/Chromium not found. Install it or set CHROME_PATH.')
-  const profile = await mkdtemp(join(tmpdir(), 'recto-chrome-'))
-  const proc = spawn(executable, chromeArgs({ extra: [`--user-data-dir=${profile}`, ...args] }), {
+  if (userDataDir) await mkdir(userDataDir, { recursive: true })
+  const profile = userDataDir ?? await mkdtemp(join(tmpdir(), 'recto-chrome-'))
+  const proc = spawn(executable, chromeArgs({ headless, extra: [`--user-data-dir=${profile}`, ...args] }), {
     stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe']
   })
   const toChrome = proc.stdio[3]
@@ -154,8 +158,35 @@ export async function launch({ executable = findChrome(), args = [] } = {}) {
       throw new Error(`Could not load ${url}: ${errorText}`)
     }
     await loaded
+    const nodeOf = async selector => {
+      const { root } = await send('DOM.getDocument', { depth: 0 }, sessionId)
+      const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector }, sessionId)
+      if (!nodeId) throw new Error(`No element matches ${selector}`)
+      return nodeId
+    }
     return {
       sessionId,
+      /** Attaches local files to an <input type=file> (fires input/change like a user pick). */
+      async setFileInputFiles(selector, files) {
+        await send('DOM.setFileInputFiles', { files, nodeId: await nodeOf(selector) }, sessionId)
+      },
+      /** A real mouse click at the element's centre, after scrolling it into view. */
+      async click(selector) {
+        const nodeId = await nodeOf(selector)
+        await send('DOM.scrollIntoViewIfNeeded', { nodeId }, sessionId)
+        const { quads } = await send('DOM.getContentQuads', { nodeId }, sessionId)
+        if (!quads?.length) throw new Error(`${selector} is not visible`)
+        const q = quads[0]
+        const x = (q[0] + q[2] + q[4] + q[6]) / 4
+        const y = (q[1] + q[3] + q[5] + q[7]) / 4
+        for (const type of ['mousePressed', 'mouseReleased']) {
+          await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }, sessionId)
+        }
+      },
+      async screenshot() {
+        const { data } = await send('Page.captureScreenshot', { format: 'png' }, sessionId)
+        return Buffer.from(data, 'base64')
+      },
       async evaluate(expression, { awaitPromise = true, timeout = 60000 } = {}) {
         const req = send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true }, sessionId)
         const { result, exceptionDetails } = await withTimeout(req, timeout)
@@ -183,7 +214,7 @@ export async function launch({ executable = findChrome(), args = [] } = {}) {
       await exited
       clearTimeout(force)
     }
-    await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    if (!userDataDir) await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 
   try {
