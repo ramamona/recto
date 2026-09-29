@@ -94,3 +94,18 @@
 .pl-row__fix { flex-basis: 100%; display: flex; gap: 8px; align-items: flex-start; }
 .pl-row__fix .pl-raw { flex: 1; }
 .pl-empty { padding: 6px 0; }
+
+/* multi-value fields, source ticks, collapsed company list, other job sites */
+.dc-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 4px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-surface); }
+.dc-chips:focus-within { border-color: var(--ui-accent); }
+.dc-chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 8px; border-radius: 999px; background: var(--ui-surface-2); font-size: var(--ui-size-sm); }
+.dc-chip__x { border: 0; background: none; color: var(--ui-muted); cursor: pointer; padding: 0 4px; font: inherit; line-height: 1.4; }
+.dc-chip__x:hover { color: var(--ui-text); }
+.dc-chips__input.ui-input { flex: 1 1 8em; min-width: 6em; border: 0; padding: 3px 4px; background: none; box-shadow: none; }
+.dc-sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(11em, 1fr)); gap: 2px 8px; }
+.dc-company-list > summary { cursor: pointer; font-weight: 600; margin: 8px 0 4px; }
+.dc-sub { font-size: var(--ui-size-sm); margin: 14px 0 4px; }
+.dc-elsewhere { flex-wrap: wrap; }
+.pl-step { display: flex; flex-direction: column; gap: 8px; max-width: 64em; }
+.pl-step__title { margin: 4px 0 0; font-size: 15px; }
+.pl-summary { font-weight: 400; font-size: var(--ui-size-sm); }

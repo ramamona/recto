@@ -35,7 +35,7 @@ Scan settings are saved in the browser (`localStorage['recto:discover']`). Roles
 - **Min score:** postings whose local ★ score is below this are dropped (default 0).
 - **Deal-breakers** from your profile, and jobs already on your board (except those still `saved`) or skipped before, are left out. Duplicates across sources are shown once.
 
-Each result is scored locally, with no AI: the ★ 1–5 job evaluation, the match estimate, a legitimacy badge and the posting's age. Results are ranked by score, then match, then recency. You can narrow them with filter chips (★ 4 or more, remote only, hide saved). Each card has a selection checkbox and offers **Save** (adds it to the jobs board), **Skip** (hides it, with undo) and **Prepare application**. Selecting results (or **Select ★≥ n**) enables **Apply to selected**, which saves them and opens the [apply queue](career-suite.md#one-click-apply) for all of them at once. A **Pipeline inbox** button next to Scan opens the paste-and-process queue described in [career-suite.md](career-suite.md#pipeline-inbox).
+Each result is scored locally, with no AI: the ★ 1–5 job evaluation, the match estimate, a legitimacy badge and the posting's age. Results are ranked by score, then match, then recency. You can narrow them with filter chips (★ 4 or more, remote only, hide saved). Each card has a selection checkbox and offers **Save** (adds it to the jobs board), **Skip** (hides it, with undo) and **Prepare application**. Selecting results (or **Select ★≥ n**) enables **Apply to selected**, which saves them and opens the [apply queue](career-suite.md#one-click-apply) for all of them at once. **Pipeline** (main strip) is the paste-and-check list described in [career-suite.md](career-suite.md#pipeline).
 
 ## Application pack
 
@@ -50,7 +50,7 @@ Each result is scored locally, with no AI: the ★ 1–5 job evaluation, the mat
 
 ## One-click apply
 
-For more than one job at a time, use the **apply queue** in the app instead of running `recto autoapply` by hand: **Apply to selected** (Discover, board multi-select), **Apply to all saved** (board header) or **Apply to processed** (Pipeline inbox) build every pack, ask each still-unanswered required question once (the answer is saved to your [answer bank](career-suite.md#saved-answers-the-answer-bank) and reused across all of them), then run `recto autoapply` for the whole batch for you through a local bridge — or, when there's no bridge, hand you a bundle file and the one command to run. See [career-suite.md](career-suite.md#one-click-apply) for the full flow.
+For more than one job at a time, use the **apply queue** in the app instead of running `recto autoapply` by hand: **Apply to selected** (Discover, board multi-select), **Apply to all saved** (board header) or **Apply to N saved jobs** (Pipeline) build every pack, ask each still-unanswered required question once (the answer is saved to your [answer bank](career-suite.md#saved-answers-the-answer-bank) and reused across all of them), then run `recto autoapply` for the whole batch for you through a local bridge — or, when there's no bridge, hand you a bundle file and the one command to run. See [career-suite.md](career-suite.md#one-click-apply) for the full flow.
 
 ### The local bridge
 

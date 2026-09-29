@@ -6,6 +6,7 @@ import {
   discover, CONCURRENCY, TIMEOUT_MS, DISCOVER_KEY,
   normalizeDiscoverSettings, loadDiscoverSettings, saveDiscoverSettings
 } from '../src/jobs/discover.js'
+import { ATS } from '../src/jobs/sources.js'
 
 const fixture = name => JSON.parse(readFileSync(new URL(`./fixtures/sources/${name}.json`, import.meta.url), 'utf8'))
 const SOURCE = JSON.parse(readFileSync(new URL('../samples/sample.cv.json', import.meta.url), 'utf8')).content
@@ -251,14 +252,14 @@ test('discover: never throws on missing or junk inputs', async () => {
 test('settings: defaults come from the profile; junk is dropped', () => {
   const profile = { targetRoles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid' }
   assert.deepEqual(normalizeDiscoverSettings(null, profile), {
-    roles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid', maxAgeDays: 30, minScore: 0, country: 'AU',
+    roles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid', maxAgeDays: 30, minScore: 0, country: 'AU', boards: ATS,
     feeds: { remotive: { enabled: false, query: '' }, arbeitnow: { enabled: false }, jobicy: { enabled: false } }
   })
   assert.deepEqual(normalizeDiscoverSettings({
     roles: [' Designer ', 'Designer', 3], locations: [], remote: 'mars', maxAgeDays: -2, minScore: 9,
     feeds: { remotive: { enabled: true, query: ' react ' }, arbeitnow: { enabled: 'yes' } }
   }, profile), {
-    roles: ['Designer'], locations: [], remote: 'hybrid', maxAgeDays: 30, minScore: 5, country: 'AU',
+    roles: ['Designer'], locations: [], remote: 'hybrid', maxAgeDays: 30, minScore: 5, country: 'AU', boards: ATS,
     feeds: { remotive: { enabled: true, query: 'react' }, arbeitnow: { enabled: false }, jobicy: { enabled: false } }
   })
   // country: settings → profile → detected (browser) → DEFAULT_COUNTRY; '' = Any
@@ -299,7 +300,9 @@ test('discover: country filter — named places, remote within the area or namin
   const scan = async settings => (await run({ companies: [], feeds: { arbeitnow: { enabled: true } }, overrides, settings }))
     .results.map(x => x.posting.id.split(':')[2]).sort()
   assert.deepEqual(await scan({ country: 'AU' }), ['a', 'b', 'c'])
-  assert.deepEqual(await scan({ country: 'AU', locations: ['London'] }), ['a', 'b', 'c', 'f'])
+  // locations narrow the search to those places (remote roles open to the country still count)
+  assert.deepEqual(await scan({ country: 'AU', locations: ['London'] }), ['b', 'c', 'f'])
+  assert.deepEqual(await scan({ country: 'AU', locations: ['Sydney'], remote: 'onsite' }), ['a'])
   assert.deepEqual(await scan({ country: 'AU', remote: 'remote' }), ['b', 'c'])
   assert.deepEqual(await scan({ country: 'AU', remote: 'onsite' }), ['a'])
   assert.deepEqual(await scan({ country: 'GB' }), ['c', 'f', 'g'])
@@ -325,7 +328,7 @@ test('discover: SmartRecruiters (country filter + job ad detail), Workable and J
   assert.deepEqual(r.errors, [])
   assert.deepEqual([...r.calls].sort(), Object.keys(overrides).sort())
   assert.deepEqual(ids(r), [
-    'jobicy:jobicy:151545', 'jobicy:jobicy:151889', 'jobicy:jobicy:151891', 'jobicy:jobicy:154095',
+    'jobicy:jobicy:151545', 'jobicy:jobicy:151889', 'jobicy:jobicy:154095',
     'smartrecruiters:Carsales:744000150805659', 'smartrecruiters:Carsales:744000151484209', 'smartrecruiters:Carsales:744000152067859',
     'workable:rokt:470376CA23', 'workable:rokt:78589A4D7B'
   ])
@@ -342,4 +345,12 @@ test('settings: the first load (nothing stored) turns the Jobicy feed on; a save
   const mem = v => ({ getItem: () => v, setItem () {} })
   assert.equal(loadDiscoverSettings(mem(null)).feeds.jobicy.enabled, true)
   assert.equal(loadDiscoverSettings(mem(JSON.stringify({ feeds: { jobicy: { enabled: false } } }))).feeds.jobicy.enabled, false)
+})
+
+test('discover: boards limits the scan to the ticked ATS kinds', async () => {
+  const hits = []
+  const fetch = async url => { hits.push(new URL(url).host); return { ok: true, status: 200, json: async () => ({ jobs: [] }), text: async () => '' } }
+  const companies = [{ source: 'greenhouse', board: 'a', name: 'A' }, { source: 'lever', board: 'b', name: 'B' }]
+  await discover({ companies, settings: { boards: ['lever'] }, cv, now: NOW, fetch })
+  assert.deepEqual(hits, ['api.lever.co'])
 })

@@ -220,7 +220,7 @@ function applyBridge(spawn) {
     return got.length === token.length && timingSafeEqual(got, Buffer.from(token))
   }
   const view = () => run && {
-    running: run.running, stopped: run.stopped, waiting: run.waiting, summary: run.summary, exitCode: run.exitCode,
+    running: run.running, stopped: run.stopped, waiting: run.waiting, summary: run.summary, exitCode: run.exitCode, learned: run.learned,
     jobs: run.jobs.map(j => ({ ...j }))
   }
 
@@ -235,6 +235,9 @@ function applyBridge(spawn) {
     } else if (e?.type === 'wait' && job) {
       job.state = 'waiting-for-you'
       run.waiting = job.id
+    } else if (e?.type === 'learned' && Array.isArray(e.answers)) {
+      // questions the user answered in the browser; the app adds them to the profile's answer bank
+      run.learned.push(...e.answers.filter(x => typeof x?.question === 'string' && typeof x?.answer === 'string').slice(0, 100))
     } else if (e?.type === 'done') run.summary = e.summary ?? {}
   }
 
@@ -246,7 +249,7 @@ function applyBridge(spawn) {
     // args array, no shell: nothing the page sends reaches a command line except as the bundle file's content
     const child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'inherit'] })
     const current = run = {
-      child, dir, running: true, stopped: false, waiting: null, summary: null, exitCode: null,
+      child, dir, running: true, stopped: false, waiting: null, summary: null, exitCode: null, learned: [],
       jobs: bundle.jobs.map(j => ({ id: String(j.id ?? ''), title: String(j.title ?? ''), company: String(j.company ?? ''), state: 'queued' }))
     }
     createInterface({ input: child.stdout }).on('line', line => onEvent(line))

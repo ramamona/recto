@@ -101,6 +101,14 @@ async function appMode() {
   const store = createStore({ storage, runPreflight, atsReport: ats?.atsReport, locale: navigator.language })
   // the autosave is debounced; write it before the page goes away (saveDoc is synchronous localStorage)
   on(window, 'pagehide', () => store.flush())
+  // The browser copy is already safe (flushed above and reloaded next visit); edits that exist in no file yet get the
+  // browser's own "Leave site?" prompt, so a closed tab never loses the only copy you meant to keep
+  on(window, 'beforeunload', e => {
+    store.flush()
+    if (store.state.saveStatus === 'file' || !store.state.canUndo) return
+    e.preventDefault()
+    e.returnValue = ''
+  })
   on(document, 'visibilitychange', () => { if (document.visibilityState === 'hidden') store.flush() })
   const banners = h('div', { class: 'app-banners' })
   $('#topbar').after(banners) // in flow: a banner pushes the panes down instead of covering them
@@ -142,6 +150,13 @@ async function appMode() {
   ctx.openInsights = () => import('./ui/insights-view.js').then(m => m.openInsights(store, ctx))
   ctx.openPipeline = () => import('./ui/pipeline-view.js').then(m => m.openPipeline(store, ctx))
   ctx.openCompare = jobIds => import('./ui/compare-view.js').then(m => m.openCompare(store, ctx, { jobIds }))
+  // Primary navigation (hub-nav.js): close whatever full-screen view is open, then open the next one ('cv' = the editor)
+  const VIEWS = { discover: () => ctx.openDiscover(), pipeline: () => ctx.openPipeline(), jobs: () => ctx.openJobsDialog(),
+    insights: () => ctx.openInsights(), profile: () => ctx.openProfileDialog() }
+  ctx.navigate = view => {
+    document.querySelectorAll('#dialogs dialog[open]').forEach(d => d.close())
+    VIEWS[view]?.()
+  }
   ctx.openApplyQueue = opts => import('./ui/apply-queue.js').then(m => m.openApplyQueue(store, ctx, opts))
   window.recto = { store, ctx } // console access for debugging
 

@@ -2,6 +2,7 @@
 // full-screen like the board. Cards over the tracker: funnel (CSV export), response rates, rejections, repost/ghost
 // suspects, score calibration, skill gaps (+ AI upskill plan), adjacent titles (+ AI titles, "Add to target roles")
 // and Career advice (AI evaluation of a course or project). AI output is a draft rendered with textContent only.
+import { hubNav } from './hub-nav.js'
 import { h, uid } from './dom.js'
 import { withSignal } from './job-panel.js'
 import { funnel, rates, rejections, reposts, calibration, skillGaps, adjacentTitles } from '../jobs/insights.js'
@@ -218,10 +219,11 @@ export function openInsights(store, ctx, { tracker = ctx.tracker } = {}) {
 
   const dialog = h('dialog', { class: 'board insights', 'aria-labelledby': titleId },
     h('header', { class: 'board-head' },
-      h('h1', { class: 'board-head__title', id: titleId, tabIndex: -1 }, t('insights.title')),
-      h('span', { class: 'ui-muted' }, t('insights.intro')),
+      h('h1', { class: 'visually-hidden', id: titleId, tabIndex: -1 }, t('insights.title')),
+      hubNav(ctx, 'insights'),
+      h('span', { class: 'ui-muted board-head__intro' }, t('insights.intro')),
       h('span', { class: 'ui-spacer' }),
-      btn(t('board.close'), () => close(), 'insights-close', 'ui-btn--primary')),
+      btn(t('board.close'), () => close(), 'insights-close')),
     body, live)
   dialog.addEventListener('close', () => busy?.ac.abort(), { once: true })
   render()

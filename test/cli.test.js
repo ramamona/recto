@@ -247,7 +247,7 @@ test('discover: scans boards and feeds offline (--fixtures), writes a tracker ex
   const data = JSON.parse(await readFile(out('found.json'), 'utf8'))
   assert.equal(data.format, 'recto-jobs')
   assert.equal(data.version, 1)
-  assert.equal(data.jobs.length, 7)
+  assert.equal(data.jobs.length, 6) // the Jobicy role titled "…, Singapore | APAC" is pinned to Singapore
   for (const j of data.jobs) {
     assert.equal(j.status, 'saved')
     assert.equal(j.evaluations.length, 1)
@@ -256,11 +256,11 @@ test('discover: scans boards and feeds offline (--fixtures), writes a tracker ex
     assert.ok(j.title && j.company && j.url && j.applyUrl)
   }
   assert.ok(data.jobs.some(j => j.id.startsWith('smartrecruiters:Carsales:') && /Why this opportunity/.test(j.text)))
-  assert.match(r.stdout, /7 jobs/)
+  assert.match(r.stdout, /6 jobs/)
 
   const high = await recto([...args, '--out', out('high.json'), '--min-score', '5'])
   assert.equal(high.code, 0, high.stderr)
-  assert.ok(JSON.parse(await readFile(out('high.json'), 'utf8')).jobs.length < 7)
+  assert.ok(JSON.parse(await readFile(out('high.json'), 'utf8')).jobs.length < 6)
   assert.equal((await recto([...args, '--country', 'Narnia'])).code, 2)
   assert.equal((await recto([...args, '--min-score', 'lots'])).code, 2)
   const missing = await recto(['discover', ...args.slice(1, 5), '--companies', await json('none.json', [{ source: 'lever', board: 'nope' }]), '--fixtures', out('routes.json'), '--out', out('none-out.json')])

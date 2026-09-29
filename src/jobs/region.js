@@ -137,3 +137,30 @@ const ELSEWHERE = ['argentina', 'austria', 'belgium', 'brazil', 'bulgaria', 'chi
 /** Whether `text` names any country, city or area at all (a bare "Remote" or "Anywhere" names none). */
 export const namesPlace = text => countriesIn(text).length > 0 || Object.keys(AREAS).some(c => inArea(text, c)) ||
   ELSEWHERE.some(a => termRe(a).test(str(text)))
+
+// Job sites with no open job data (their terms forbid scraping): Discover links to the same search there instead.
+const INDEED = { AU: 'au.indeed.com', NZ: 'nz.indeed.com', GB: 'uk.indeed.com', US: 'www.indeed.com', CA: 'ca.indeed.com',
+  IE: 'ie.indeed.com', DE: 'de.indeed.com', FR: 'fr.indeed.com', SG: 'sg.indeed.com', IN: 'in.indeed.com' }
+const SEEK = { AU: 'www.seek.com.au', NZ: 'www.seek.co.nz' }
+const JORA = { AU: 'au.jora.com' }
+
+/** `[{ name, url }]` searches for `role` near `location` on the big job sites for the country ('' = LinkedIn + Indeed US). */
+export function searchLinks(country, { role = '', location = '' } = {}) {
+  const c = countryOf(country)
+  const where = location || (c ? REGIONS[c].name : '')
+  const q = encodeURIComponent(role), l = encodeURIComponent(where)
+  return [
+    { name: 'LinkedIn', url: `https://www.linkedin.com/jobs/search/?keywords=${q}&location=${l}` },
+    SEEK[c] && { name: 'SEEK', url: `https://${SEEK[c]}/jobs?keywords=${q}&where=${l}` },
+    { name: 'Indeed', url: `https://${INDEED[c] ?? 'www.indeed.com'}/jobs?q=${q}&l=${l}` },
+    JORA[c] && { name: 'Jora', url: `https://${JORA[c]}/j?q=${q}&l=${l}` }
+  ].filter(Boolean)
+}
+
+/** Place names for a location picker: the country's cities and regions, capitalised ('' = every preset's). */
+export function placeSuggestions(country) {
+  const c = countryOf(country)
+  const title = s => s === s.toUpperCase() ? s : s.replace(/(^|[\s-])\p{L}/gu, m => m.toUpperCase())
+  const names = (c ? [c] : Object.keys(REGIONS)).flatMap(k => REGIONS[k].places.map(title))
+  return [...new Set(names)]
+}

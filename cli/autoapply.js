@@ -14,7 +14,7 @@ import { migrateFile } from '../src/model/layout.js'
 import { evaluateJob } from '../src/jobs/evaluate.js'
 import * as profiles from '../src/profile.js'
 import { DECLINE_RE, ruleAnswer, ruleOf } from '../src/jobs/pack.js'
-import { findAnswer as bankAnswer } from '../src/jobs/answers.js'
+import { findAnswer as bankAnswer, remember } from '../src/jobs/answers.js'
 import { launch as launchChrome } from './chrome.js'
 
 const CONFIRM_TIMEOUT = 20000
@@ -262,6 +262,18 @@ function inPage(action, arg) {
 
 const inPageCall = (action, arg = null) => `(${inPage})(${JSON.stringify(action)}, ${JSON.stringify(arg)})`
 
+// Never learned from a form: secrets and identity numbers
+const SENSITIVE = /password|passcode|\bpin\b|card|cvv|cvc|security code|social security|\bssn\b|tax file|\btfn\b|bank|account number|bsb|routing|passport|licen[cs]e number|medicare/i
+
+/** Questions the user answered in the browser: fields empty after our fill that hold a value in `latest` (the last scan
+ * before the form went away). Files, checkboxes and sensitive fields are skipped. → [{ question, answer, options? }] */
+export function learnedAnswers(filled, latest) {
+  const ours = new Map((filled ?? []).map(f => [f.key, str(f.value)]))
+  return (latest ?? []).filter(f => str(f.label) && str(f.value) && !ours.get(f.key) && !['file', 'checkbox', 'password', 'hidden'].includes(f.kind) &&
+    !SENSITIVE.test(`${f.label} ${f.name ?? ''}`))
+    .map(f => ({ question: str(f.label), answer: str(f.value), ...(f.options?.length ? { options: f.options.map(o => str(o?.label ?? o)).filter(Boolean) } : {}) }))
+}
+
 async function fillForm(page, url, ctx) {
   const scan = await page.evaluate(inPageCall('scan'))
   const fills = scan.fields.filter(f => !f.value && f.kind !== 'file' && f.kind !== 'checkbox')
@@ -347,6 +359,19 @@ export async function autoapply(opts, deps) {
     job.statusHistory = [...(Array.isArray(job.statusHistory) ? job.statusHistory : []), { status: 'applied', at }]
     job.updatedAt = at
     await writeFile(jobsPath, JSON.stringify(data, null, 2) + '\n')
+  }
+  // New answers: reused for the rest of this run, saved to the profile file (or the bundle's profile) and reported
+  const learn = async (job, answers) => {
+    if (!answers.length) return
+    a.answers = answers.reduce((bank, x) => remember(bank, x, now()), Array.isArray(a.answers) ? a.answers : [])
+    emit({ type: 'learned', id: job.id, answers })
+    print(`  learned ${answers.length} new answer(s): ${answers.map(x => x.question).join('; ')}`)
+    if (bundlePath) {
+      data.profile = { ...(data.profile ?? {}), answers: a.answers }
+      await writeFile(jobsPath, JSON.stringify(data, null, 2) + '\n')
+    } else if (profilePath) {
+      await writeFile(profilePath, JSON.stringify({ ...profile, answers: a.answers }, null, 2) + '\n')
+    }
   }
   const pdfName = pack => {
     const name = basename(str(pack?.pdfName) || [a.firstName, a.lastName, 'CV'].filter(Boolean).join('-')).replace(/[^\w.-]+/g, '-')
@@ -437,13 +462,20 @@ export async function autoapply(opts, deps) {
         }
         if (failing.length) print(`  not submitting: ${failing.join(', ')}`)
         let yes
-        if (progressJson) {
-          emit({ type: 'wait', id: job.id })
-          yes = /^y/i.test(str(await ask('')))
-        } else {
-          await ask('  Review and submit in the browser, then press Enter ')
-          yes = /^y/i.test(str(await ask('  Did you submit? [y/N] ')))
-        }
+        // While the user finishes the form, keep the latest snapshot: their own answers join the bank afterwards
+        let latest = form.fields
+        const watch = setInterval(() => page.evaluate(inPageCall('scan'), { timeout: 1500 })
+          .then(sc => { if (sc?.fields?.length) latest = sc.fields }, () => {}), 2000)
+        try {
+          if (progressJson) {
+            emit({ type: 'wait', id: job.id })
+            yes = /^y/i.test(str(await ask('')))
+          } else {
+            await ask('  Review and submit in the browser, then press Enter ')
+            yes = /^y/i.test(str(await ask('  Did you submit? [y/N] ')))
+          }
+        } finally { clearInterval(watch) }
+        await learn(job, learnedAnswers(form.fields, latest))
         if (yes) {
           submittedToday++
           await markApplied(job)

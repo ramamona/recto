@@ -464,3 +464,14 @@ test('recto autoapply --bundle --progress-json keeps stdout to JSON lines; a mal
   assert.equal(r2.code, 2)
   assert.match(r2.stderr, /bundle/)
 })
+
+test('learnedAnswers: only questions the user answered in the browser, never secrets or files', async () => {
+  const { learnedAnswers } = await import('../cli/autoapply.js')
+  const filled = [{ key: 'k1', label: 'Email', value: 'a@b.co' }, { key: 'k2', label: 'Do you hold a police check?', value: '' },
+    { key: 'k3', label: 'Password', value: '' }, { key: 'k4', label: 'CV', kind: 'file', value: '' }, { key: 'k5', label: 'Years with Go?', value: '' }]
+  const latest = [{ key: 'k1', label: 'Email', value: 'a@b.co' }, { key: 'k2', label: 'Do you hold a police check?', kind: 'select', value: 'Yes', options: ['Yes', 'No'] },
+    { key: 'k3', label: 'Password', kind: 'password', value: 'hunter2' }, { key: 'k4', label: 'CV', kind: 'file', value: 'cv.pdf' },
+    { key: 'k5', label: 'Years with Go?', value: '' }, { key: 'k6', label: 'Tax file number', value: '123' }]
+  assert.deepEqual(learnedAnswers(filled, latest), [{ question: 'Do you hold a police check?', answer: 'Yes', options: ['Yes', 'No'] }])
+  assert.deepEqual(learnedAnswers(filled, undefined), [])
+})

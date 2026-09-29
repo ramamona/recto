@@ -145,7 +145,7 @@ src/ui/
                               registers ctx.openProfileDialog
   discover-view.js            openDiscover(store, ctx): full-screen Discover view — country select (region.js), scan
                               settings and company list, Find boards, Scan with progress, filter chips, per-result
-                              checkboxes + Select ★≥n + Apply to selected, a Pipeline inbox header button, ranked cards
+                              checkboxes + Select ★≥n + Apply to selected, a Pipeline header button, ranked cards
                               with Save · Skip · Prepare application
   pack-view.js                openPack(store, ctx, jobId): application pack dialog (tailored CV, cover letter, questions
                               with answer-bank "Remember for similar questions", fields, Open application page, Mark
@@ -165,16 +165,16 @@ src/ui/
   insights-view.js             openInsights(store, ctx): full-screen Insights — funnel, response rates, score
                               calibration, rejections, reposts/ghost suspects, top skill gaps (+AI upskill plan),
                               adjacent titles (+AI suggestions), career advice (AI), CSV export of the funnel
-  pipeline-view.js             openPipeline(store, ctx): full-screen Pipeline inbox — paste links/JDs, Process all
+  pipeline-view.js             openPipeline(store, ctx): full-screen Pipeline — paste links/JDs, Check and save
                               (fetch → parse → evaluate → optional AI deep-evaluate → save → build pack, 2 at a time),
                               per-item state and retry, Apply to processed
   command-bar.js              mountCommandBar(store, ctx): Cmd/Ctrl-K palette over AI actions, app actions (incl.
-                              Candidate profile, Discover, Pipeline inbox, Insights, Apply to all saved) and "go to
+                              Candidate profile, Discover, Pipeline, Insights, Apply to all saved) and "go to
                               section", fuzzy-filtered, recent commands first; an action whose ctx function isn't
                               wired up yet is left out of the list rather than shown disabled
 
 styles/                     app.css, editor.css, canvas.css, inspector.css, assist.css, board.css, command.css, discover.css
-                            (app UI; discover.css also styles the pack and the Pipeline inbox), profile.css, apply.css,
+                            (app UI; discover.css also styles the pack and the Pipeline), profile.css, apply.css,
                             insights.css; cv.css (the pages)
 locales/en.json             UI strings (flat keys)
 templates/                  index.json + one JSON file per template
@@ -194,7 +194,7 @@ scripts/assist-check.js     end-to-end AI + jobs + career-suite flow in headless
                             match/evaluate/tailor/cover-letter, the always-on ATS chip, the Review tab's 8 checks, the
                             local job evaluation table, the jobs board (drag/keyboard move persists a status change),
                             the command bar, the candidate profile and answer bank, the apply queue, the job workspace
-                            and Insights/Pipeline inbox
+                            and Insights/Pipeline
 test/*.test.js              node --test
 ```
 
@@ -257,7 +257,7 @@ The pages live in a shadow root whose stylesheet stack is `cv.css`, then the the
 | `npm test` (`node --test`) | Parser grammar and edge cases, dates, categories, layout normalization, migration, ops and section config, templates, content edits, pagination, theme CSS, contrast, every preflight rule and its fix, ATS text, JSON Resume round trip, paste import, remix, the store, the server, locale key parity, and the security scan |
 | `npm run smoke` | Every template renders the sample with zero preflight errors, within its target pages and with at least 8 % free on the last page, with no overflow and no paint-invariant violation. The PDF page count matches, and with `pdftotext` installed, the PDF text has the name, email and section titles in placement order |
 | `node scripts/render-check.js` | Pagination and the paint invariant on generated documents (long sections, multi-page, columns) |
-| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs + career-suite flow in headless Chrome against a stub OpenAI-compatible server (every network host stubbed): suggest, accept/reject, tailor, evaluate, cover letter, the match gauge, the tracker, the always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs board (drag/keyboard move persists), the command bar, the candidate profile and answer bank, the apply queue (with and without the local bridge), the job workspace's tabs, and Insights with the Pipeline inbox. No real provider is ever contacted |
+| `npm run assist-check` (`node scripts/assist-check.js`) | End-to-end AI + jobs + career-suite flow in headless Chrome against a stub OpenAI-compatible server (every network host stubbed): suggest, accept/reject, tailor, evaluate, cover letter, the match gauge, the tracker, the always-on ATS chip, the Review tab's 8 checks, the local job evaluation table, the jobs board (drag/keyboard move persists), the command bar, the candidate profile and answer bank, the apply queue (with and without the local bridge), the job workspace's tabs, and Insights with the Pipeline. No real provider is ever contacted |
 
 CI runs `npm test` and `npm run smoke` on `ubuntu-latest` with Node 22, `fonts-liberation` and `poppler-utils`.
 
