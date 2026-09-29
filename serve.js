@@ -159,7 +159,7 @@ async function proxyFetch(req, res, { lookup, fetch }) {
   try {
     for (let hop = 0; ; hop++) {
       if (!(await resolvesPublic(target.hostname, lookup))) return reply(403, { error: 'blocked' })
-      const r = await fetch(target.href, { redirect: 'manual', signal, headers: { accept: 'text/html, text/plain;q=0.9', 'user-agent': 'Recto' } })
+      const r = await fetch(target.href, { redirect: 'manual', signal, headers: { accept: 'text/html, application/json;q=0.9, text/plain;q=0.8', 'user-agent': 'Recto' } })
       const location = r.status >= 300 && r.status < 400 ? r.headers.get('location') : null
       if (location) {
         discard(r.body)
@@ -170,11 +170,11 @@ async function proxyFetch(req, res, { lookup, fetch }) {
       }
       if (r.status < 200 || r.status >= 300) { discard(r.body); return reply(502, { error: 'upstream', status: r.status }) }
       const contentType = (r.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
-      if (!['text/html', 'application/xhtml+xml', 'text/plain'].includes(contentType)) { discard(r.body); return reply(415, { error: 'unsupported-type', contentType }) }
+      if (!['text/html', 'application/xhtml+xml', 'text/plain', 'application/json'].includes(contentType)) { discard(r.body); return reply(415, { error: 'unsupported-type', contentType }) }
       const bytes = await readCapped(r.body, FETCH_CAP)
       if (!bytes) return reply(413, { error: 'too-large' })
       const raw = decode(bytes, r.headers.get('content-type'))
-      return reply(200, { url: target.href, contentType, text: contentType === 'text/plain' ? raw : extractHtml(raw).text })
+      return reply(200, { url: target.href, contentType, text: ['text/plain', 'application/json'].includes(contentType) ? raw : extractHtml(raw).text })
     }
   } catch (err) {
     if (signal.aborted) return reply(504, { error: 'timeout' })

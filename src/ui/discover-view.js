@@ -3,6 +3,7 @@
 // Career-suite spec §2: country select, Jobicy feed, SmartRecruiters/Workable boards and "Find boards".
 // Career-suite spec §7: card checkboxes, "Select ★≥ n" and "Apply to selected (n)" (apply queue); link to the Pipeline inbox.
 import { hubNav } from './hub-nav.js'
+import { probeProxy } from './job-panel.js'
 import { h, uid, replaceChildren } from './dom.js'
 import { loadProfile, REMOTE } from '../profile.js'
 import { openFile, download } from '../io/files.js'
@@ -11,9 +12,9 @@ import { REGIONS, detectCountry, searchLinks, placeSuggestions } from '../jobs/r
 const DAY = 864e5
 const GOOD_SCORE = 4 // the ★ chip: "apply"-level jobs only
 const SOURCE_NAMES = { greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', smartrecruiters: 'SmartRecruiters', workable: 'Workable',
-  remotive: 'Remotive', arbeitnow: 'Arbeitnow', jobicy: 'Jobicy' }
+  remotive: 'Remotive', arbeitnow: 'Arbeitnow', jobicy: 'Jobicy', seek: 'SEEK', adzuna: 'Adzuna' }
 // Feeds whose terms ask for "via <name>" and a link back to the posting on their site
-const VIA = ['remotive', 'jobicy']
+const VIA = ['remotive', 'jobicy', 'seek', 'adzuna']
 const safeUrl = u => /^https?:\/\//i.test(u ?? '') ? u : null
 const splitList = s => String(s ?? '').split(/[,\n]/).map(v => v.trim()).filter(Boolean)
 
@@ -217,6 +218,34 @@ export async function openDiscover(store, ctx) {
     }
   }
 
+  // Job-site searches for the active country: SEEK (opt-in, unofficial) and Adzuna (official API, free key)
+  function jobSites() {
+    const feeds = REGIONS[settings.country]?.feeds ?? {}
+    if (!feeds.seek && !feeds.adzuna) return []
+    const { adzuna } = settings.feeds
+    const key = (k, label) => h('input', {
+      class: 'ui-input', type: k === 'appKey' ? 'password' : 'text', value: adzuna[k], placeholder: label, 'aria-label': label,
+      autocomplete: 'off', spellcheck: false, dataset: { field: `adzuna-${k}` }, onChange: e => setFeed('adzuna', { [k]: e.target.value.trim() })
+    })
+    return [
+      h('h3', { class: 'dc-sub' }, t('discover.sites')),
+      feeds.seek && [
+        h('label', { class: 'ai-row' }, h('input', {
+          type: 'checkbox', checked: settings.feeds.seek.enabled, dataset: { feed: 'seek' },
+          onChange: e => { setFeed('seek', { enabled: e.target.checked }); renderSettings() }
+        }), t('discover.feed.seek')),
+        h('p', { class: 'ui-muted ai-hint dc-warn' }, t('discover.feed.seek.hint'))],
+      feeds.adzuna && [
+        h('label', { class: 'ai-row' }, h('input', {
+          type: 'checkbox', checked: adzuna.enabled, dataset: { feed: 'adzuna' },
+          onChange: e => { setFeed('adzuna', { enabled: e.target.checked }); renderSettings() }
+        }), t('discover.feed.adzuna')),
+        adzuna.enabled && h('div', { class: 'dc-row' }, key('appId', t('discover.adzuna.id')), key('appKey', t('discover.adzuna.key'))),
+        adzuna.enabled && h('p', { class: 'ui-muted ai-hint' }, t('discover.adzuna.hint'), ' ',
+          h('a', { href: 'https://developer.adzuna.com/signup', target: '_blank', rel: 'noopener noreferrer' }, 'developer.adzuna.com'))]
+    ]
+  }
+
   function renderSettings() {
     const remotive = settings.feeds.remotive
     const remote = h('select', { class: 'ui-select', dataset: { field: 'remote' }, onChange: e => setSettings({ remote: e.target.value }) },
@@ -246,6 +275,7 @@ export async function openDiscover(store, ctx) {
       h('h2', {}, t('discover.sources')),
       h('p', { class: 'ui-muted ai-hint' }, t('discover.sources.hint')),
       h('div', { class: 'dc-sources' }, sources.ATS.map(boardToggle)),
+      ...jobSites(),
       companyEditor(),
       h('h3', { class: 'dc-sub' }, t('discover.feeds')),
       toggle('remotive', t('discover.feed.remotive')),
@@ -262,6 +292,22 @@ export async function openDiscover(store, ctx) {
   }
 
   // ---------- scan ----------
+  // A source that browsers can't read directly (no CORS) goes through the local server's proxy when Recto runs locally
+  let proxy = null // Promise<origin | null>
+  async function netFetch(url, init) {
+    try {
+      return await globalThis.fetch(url, init) // read at call time: stubs and polyfills apply
+    } catch (err) {
+      if (init?.signal?.aborted || !/^https:\/\//.test(String(url))) throw err
+      proxy ??= probeProxy(globalThis.fetch, location.origin)
+      const base = await proxy
+      if (!base) throw err
+      const res = await globalThis.fetch(`${base}/api/fetch?url=${encodeURIComponent(url)}`, { signal: init?.signal })
+      const data = res.ok ? await res.json() : null
+      return data ? new Response(data.text, { status: 200, headers: { 'content-type': 'application/json' } }) : res
+    }
+  }
+
   async function scan() {
     if (scanning) return scanning.abort()
     const ac = scanning = new AbortController()
@@ -273,7 +319,7 @@ export async function openDiscover(store, ctx) {
       const r = await engine.discover({
         companies, feeds: settings.feeds, settings, profile: loadProfile(), tracker, now: new Date(), signal: ac.signal,
         cv: { source: s.content, doc: s.doc, layout: s.layout, issues: s.issues, report: s.report },
-        fetch: (...a) => globalThis.fetch(...a), // read at call time: stubs and polyfills apply
+        fetch: netFetch,
         onProgress: p => { progress = p; renderBar() }
       })
       results = r.results

@@ -1379,7 +1379,7 @@
   "discover.chip.removeValue": "Remove {value}",
   "discover.locations.hint": "Pick from the list or type a place and press Enter. Add as many as you like; results stay within them (plus remote roles open to your country).",
   "discover.sources": "Where to search",
-  "discover.sources.hint": "Tick every job-board type to scan. Each one reads the public boards of the companies in the list below.",
+  "discover.sources.hint": "Tick every source to scan: company job boards (read for each company in the list below) and job sites that search by your roles and locations.",
   "discover.elsewhere": "Also search on",
   "discover.elsewhere.hint": "These sites have no open job data, so Recto can't scan them. Each link opens your search there in a new tab; paste the links you like into Pipeline to evaluate and track them.",
   "pipeline.step1": "1 · Paste jobs",
@@ -1398,5 +1398,12 @@
   "profile.todo.count": "{n} question(s) waiting for an answer.",
   "profile.todo.none": "Nothing waiting — every question in your packs has an answer.",
   "profile.todo.save": "Save answer",
-  "profile.answers.saved": "Saved answers"
+  "profile.answers.saved": "Saved answers",
+  "discover.sites": "Job sites",
+  "discover.feed.seek": "SEEK",
+  "discover.feed.seek.hint": "Reads SEEK's own search results for your roles and locations. SEEK offers no public API and its terms don't allow automated access: it's off unless you turn it on, it may stop working, and applying stays on SEEK.",
+  "discover.feed.adzuna": "Adzuna (brings together listings from many job sites)",
+  "discover.adzuna.id": "App ID",
+  "discover.adzuna.key": "App key",
+  "discover.adzuna.hint": "Free key from"
 }

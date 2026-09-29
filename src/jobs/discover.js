@@ -41,7 +41,9 @@ export function normalizeDiscoverSettings(s, profile, detected = '') {
     feeds: {
       remotive: { enabled: obj(f.remotive).enabled === true, query: str(obj(f.remotive).query).trim() },
       arbeitnow: { enabled: obj(f.arbeitnow).enabled === true },
-      jobicy: { enabled: obj(f.jobicy).enabled === true }
+      jobicy: { enabled: obj(f.jobicy).enabled === true },
+      seek: { enabled: obj(f.seek).enabled === true },
+      adzuna: { enabled: obj(f.adzuna).enabled === true, appId: str(obj(f.adzuna).appId).trim(), appKey: str(obj(f.adzuna).appKey).trim() }
     }
   }
 }
@@ -100,6 +102,22 @@ function tasksFor(companies, s) {
   if (remotive.enabled) tasks.push({ source: 'remotive', board: 'remotive', url: SOURCES.remotive.listUrl(remotive.query || s.roles[0] || '') })
   if (arbeitnow.enabled) tasks.push({ source: 'arbeitnow', board: 'arbeitnow', url: SOURCES.arbeitnow.listUrl(1) })
   if (jobicy.enabled) tasks.push({ source: 'jobicy', board: 'jobicy', url: SOURCES.jobicy.listUrl(regionOf(s.country)?.feeds?.jobicy ?? '') })
+  // Search feeds: one request per role × place (at most 3 × 3); no locations = the whole country
+  const feedsOf = regionOf(s.country)?.feeds ?? {}
+  const roles = s.roles.length ? s.roles.slice(0, 3) : ['']
+  const wheres = s.locations.length ? s.locations.slice(0, 3) : [regionOf(s.country)?.name ?? '']
+  const searches = roles.flatMap(what => wheres.map(where => ({ what, where })))
+  const { seek, adzuna } = s.feeds
+  if (seek.enabled && feedsOf.seek) {
+    for (const { what, where } of searches) for (const page of [1, 2]) {
+      tasks.push({ source: 'seek', board: feedsOf.seek, url: SOURCES.seek.listUrl({ site: feedsOf.seek, keywords: what, where, page }) })
+    }
+  }
+  if (adzuna.enabled && adzuna.appId && adzuna.appKey && feedsOf.adzuna) {
+    for (const { what, where } of searches) {
+      tasks.push({ source: 'adzuna', board: 'adzuna', url: SOURCES.adzuna.listUrl({ country: feedsOf.adzuna, appId: adzuna.appId, appKey: adzuna.appKey, what, where }) })
+    }
+  }
   return tasks
 }
 
@@ -135,7 +153,7 @@ export async function discover({ companies, feeds, settings, profile, cv, tracke
     let postings = []
     try {
       postings = t.company ? await fetchPostings(t.company, { ...net, country: s.country })
-        : parsePostings(t.source, await getJson(t.url, net))
+        : parsePostings(t.source, await getJson(t.url, net), { board: t.board })
     } catch (err) {
       if (!signal?.aborted) errors.push({ source: t.source, board: t.board, message: str(err?.message) || String(err) })
     }

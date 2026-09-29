@@ -55,12 +55,14 @@ Discover (top bar, or the command bar) scans public job boards and ranks what it
 | SmartRecruiters | Company posting boards, filtered by country when one is active |
 | Workable | Company posting boards |
 | Jobicy | A remote-jobs feed, filtered by the active country's geo code (on for your first scan) |
+| Adzuna | Official search API that brings together listings from many job sites. Searches your roles × locations (up to 3 × 3). Needs a free App ID and key from [developer.adzuna.com](https://developer.adzuna.com/signup), entered under **Job sites** (the CLI reads `ADZUNA_APP_ID` / `ADZUNA_APP_KEY`). When a browser can't reach it directly, a locally run Recto goes through its own server |
+| SEEK | Where the country preset has it. Reads SEEK's own search results for your roles × locations. **Opt-in:** SEEK has no public API and its terms don't allow automated access, so it's off unless you tick it, it may stop working, and applying stays on SEEK. CLI: `--seek` |
 
 **Where to search** has a checkbox per job-board type (with how many companies of each are in your list) and per feed — tick as many as you like. The company list itself is folded away under **Company list**; the starter list (`data/companies.json`) is a starting point, and every source and filter is country-neutral. Add your own companies with the editor, or use **Find boards**: type a company name and Recto probes every board type for a public board with open roles.
 
 **Target roles** and **Locations** take several values each: type and press Enter, or pick a suggestion (locations suggest the country preset's cities and states). With locations set, results stay within those places, plus remote roles open to your country — a remote role whose location or title names somewhere else ("Remote – Spain", "SRE — UK") is left out.
 
-**Also search on** links to the same search on the big job sites that have no open job data (LinkedIn and Indeed everywhere; SEEK and Jora where the preset has them). Recto can't scan those sites; paste the links you like into [Pipeline](#pipeline).
+**Also search on** links to the same search on job sites Recto can't read (LinkedIn and Indeed everywhere; SEEK, Jora and Employment Hero where they operate): LinkedIn blocks automated access, Indeed retired its search API, and Jora sits behind a bot check. Recto doesn't scan those sites; paste the links you like into [Pipeline](#pipeline).
 
 Filters, scoring, legitimacy checks and the Save / Skip / Prepare application actions work as described in [Discover & apply](discover-apply.md). Every result has a checkbox; **Select ★≥ {n}** picks every result at or above a score, and **Apply to selected** saves the picked postings and opens the [apply queue](#one-click-apply) for them.
 

@@ -44,9 +44,9 @@ test('namesPlace tells a pinned remote role from an anywhere one', async () => {
 test('searchLinks and placeSuggestions follow the country', async () => {
   const { searchLinks, placeSuggestions } = await import('../src/jobs/region.js')
   const au = searchLinks('AU', { role: 'Platform Engineer', location: 'Sydney' })
-  assert.deepEqual(au.map(s => s.name), ['LinkedIn', 'SEEK', 'Indeed', 'Jora'])
+  assert.deepEqual(au.map(s => s.name), ['LinkedIn', 'SEEK', 'Indeed', 'Jora', 'Employment Hero'])
   assert.ok(au[1].url.startsWith('https://www.seek.com.au/jobs?keywords=Platform%20Engineer&where=Sydney'))
-  assert.deepEqual(searchLinks('GB', { role: 'x' }).map(s => s.name), ['LinkedIn', 'Indeed'])
-  assert.ok(searchLinks('GB').at(-1).url.includes('uk.indeed.com') && searchLinks('GB').at(-1).url.includes('United%20Kingdom'))
+  assert.deepEqual(searchLinks('US', { role: 'x' }).map(s => s.name), ['LinkedIn', 'Indeed'])
+  assert.ok(searchLinks('GB')[1].url.includes('uk.indeed.com') && searchLinks('GB')[1].url.includes('United%20Kingdom'))
   assert.ok(placeSuggestions('AU').includes('Sydney') && placeSuggestions('AU').includes('Gold Coast') && placeSuggestions('AU').includes('NSW'))
 })

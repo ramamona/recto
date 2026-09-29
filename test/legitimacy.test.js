@@ -85,3 +85,10 @@ test('empty job never throws', () => {
   assert.ok(['ok', 'caution', 'red-flag'].includes(r.level))
   assert.ok(checkLegitimacy(null).signals.length)
 })
+
+test('a teaser from a summary-only search feed is not flagged as generic', async () => {
+  const { checkLegitimacy } = await import('../src/jobs/legitimacy.js')
+  const job = { title: 'Platform Engineer', company: 'Acme', text: 'Great team, hybrid in Sydney.', postedAt: new Date().toISOString(), url: 'https://www.seek.com.au/job/1' }
+  assert.ok(checkLegitimacy(job).signals.some(s => s.code === 'generic'))
+  assert.ok(!checkLegitimacy({ ...job, source: 'seek' }).signals.some(s => s.code === 'generic'))
+})

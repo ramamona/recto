@@ -133,6 +133,32 @@ export const SOURCES = {
       url: j.url, postedAt: Number.isFinite(j.created_at) ? j.created_at * 1000 : null, text: htmlText(j.description)
     }))
   },
+  // SEEK's own site search: undocumented and outside SEEK's terms for automated use, so it is opt-in (off by default).
+  // `site` from the country preset (www.seek.com.au, www.seek.co.nz); 20 results a page. Applying stays on SEEK.
+  seek: {
+    listUrl: ({ site, keywords = '', where = '', page = 1 }) =>
+      `https://${site}/api/jobsearch/v5/search?keywords=${enc(keywords)}&where=${enc(where)}&page=${page}`,
+    parse: (data, { board }) => items(data?.data).flatMap(j => posting('seek', 'seek', j.id, {
+      title: j.title, company: j.companyName || j.advertiser?.description,
+      location: place(items(j.locations)[0]?.label, regionOf(items(j.locations)[0]?.countryCode)?.name),
+      remote: remoteFrom(j.workArrangements?.displayText ?? '', ''),
+      url: /^www\.seek\.co(m\.au|\.nz)$/.test(board) ? `https://${board}/job/${enc(j.id)}` : '',
+      postedAt: j.listingDate, text: [j.teaser, ...(Array.isArray(j.bulletPoints) ? j.bulletPoints : [])].map(str).filter(Boolean).join('\n'),
+      salary: j.salaryLabel
+    }))
+  },
+  // Adzuna's official search API (free key from developer.adzuna.com); `country` from the preset (au, gb, us, …)
+  adzuna: {
+    listUrl: ({ country, appId, appKey, what = '', where = '', page = 1 }) =>
+      `https://api.adzuna.com/v1/api/jobs/${enc(country)}/search/${page}?app_id=${enc(appId)}&app_key=${enc(appKey)}` +
+      `&results_per_page=50&max_days_old=30&what=${enc(what)}&where=${enc(where)}&content-type=application/json`,
+    parse: data => items(data?.results).flatMap(j => posting('adzuna', 'adzuna', j.id, {
+      title: htmlText(j.title), company: j.company?.display_name, location: j.location?.display_name,
+      remote: remoteFrom('', `${str(j.title)} ${str(j.location?.display_name)}`),
+      url: j.redirect_url, postedAt: j.created, text: htmlText(j.description),
+      salary: j.salary_min ? `${Math.round(j.salary_min)}${j.salary_max && j.salary_max !== j.salary_min ? `–${Math.round(j.salary_max)}` : ''}` : ''
+    }))
+  },
   jobicy: {
     listUrl: geo => `https://jobicy.com/api/v2/remote-jobs?count=50${str(geo) ? `&geo=${enc(geo)}` : ''}`,
     parse: data => items(data?.jobs).flatMap(j => posting('jobicy', 'jobicy', j.id, {
