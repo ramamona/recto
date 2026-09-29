@@ -37,7 +37,9 @@ function emailMismatch(email, company, url) {
   return !(d.includes(s) || (first.length >= 3 && d.includes(first)))
 }
 
-/** `job`: a Job (title, company, text, postedAt, url, id). `saved`: tracker jobs, for repost detection. */
+const SUMMARY_ONLY = ['seek', 'adzuna']
+
+/** `job`: a Job (title, company, text, postedAt, url, id, source). `saved`: tracker jobs, for repost detection. */
 export function checkLegitimacy(job, { saved = [], now = new Date(), parsed } = {}) {
   const j = job ?? {}
   const text = String(j.text ?? '')
@@ -63,7 +65,8 @@ export function checkLegitimacy(job, { saved = [], now = new Date(), parsed } = 
     if (pay.max * PER_YEAR[pay.period] > MAX_ANNUAL && !EXEC.test(title)) add('salary-high', 'medium', pay.text)
     if (pay.min > 0 && pay.max / pay.min > 3) add('salary-range', 'medium', pay.text)
   }
-  if (p.keywords.length < 3 && p.requirements.length < 3) add('generic', 'medium')
+  // search feeds that only carry a teaser (the full ad is on their site) can't be judged vague from it
+  if (p.keywords.length < 3 && p.requirements.length < 3 && !SUMMARY_ONLY.includes(j.source)) add('generic', 'medium')
   const odd = (p.signals.emails ?? []).find(e => emailMismatch(e, company, j.url))
   if (odd) add('email-domain', 'medium', odd)
   const rush = lineWith(text, PRESSURE)

@@ -3,7 +3,7 @@
 export const JOBS_KEY = 'recto:jobs'
 export const STATUSES = ['saved', 'applied', 'interview', 'offer', 'rejected', 'no-response', 'skipped']
 export const STALE_DAYS = 21
-const SOURCES = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable', 'remotive', 'arbeitnow', 'jobicy', 'pipeline', 'url', 'paste']
+const SOURCES = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable', 'remotive', 'arbeitnow', 'jobicy', 'seek', 'adzuna', 'pipeline', 'url', 'paste']
 const MAX_QUESTIONS = 100
 const MAX_PACK = 200_000 // chars of JSON: answers are short; a pack past this is junk
 const FORMAT = 'recto-jobs'

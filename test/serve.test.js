@@ -160,6 +160,7 @@ const redirect = to => new Response(null, { status: 302, headers: { location: to
 const ROUTES = {
   'https://public.example/job': () => new Response('<html><head><title>x</title><script>evil()</script></head><body><h1>Engineer</h1><ul><li>Go</li></ul></body></html>', { headers: { 'content-type': 'text/html; charset=utf-8' } }),
   'https://public6.example/plain': () => new Response('Plain JD', { headers: { 'content-type': 'text/plain' } }),
+  'https://public6.example/api': () => new Response('{"results":[]}', { headers: { 'content-type': 'application/json; charset=utf-8' } }),
   'https://public.example/pdf': () => new Response('%PDF', { headers: { 'content-type': 'application/pdf' } }),
   'https://public.example/hop': () => redirect('/job'),
   'https://public.example/to-metadata': () => redirect('http://169.254.169.254/latest/meta-data'),
@@ -188,6 +189,8 @@ test('/api/fetch returns extracted text for a public target, following safe redi
     assert.equal(html.status, 200)
     assert.deepEqual(html.json, { url: 'https://public.example/job', contentType: 'text/html', text: 'Engineer\n• Go' })
     assert.deepEqual((await api(p, 'https://public6.example/plain')).json, { url: 'https://public6.example/plain', contentType: 'text/plain', text: 'Plain JD' })
+    // a job-search API without browser access (no CORS): JSON passes through as text for Discover
+    assert.deepEqual((await api(p, 'https://public6.example/api')).json, { url: 'https://public6.example/api', contentType: 'application/json', text: '{"results":[]}' })
     const hop = await api(p, 'https://public.example/hop')
     assert.equal(hop.json.url, 'https://public.example/job')
     assert.equal((await api(p, 'https://public.example/pdf')).status, 415)

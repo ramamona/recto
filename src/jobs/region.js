@@ -16,7 +16,7 @@ export const REGIONS = {
     checks: ['policeCheck', 'workingWithChildren'],
     diversity: ['indigenous'],
     workRights: ['citizen', 'permanent-resident', 'nz-citizen', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'au', jobicy: 'australia' },
+    feeds: { smartrecruiters: 'au', jobicy: 'australia', seek: 'www.seek.com.au', adzuna: 'au' },
     timeZone: /^Australia\//, locales: ['en-AU']
   },
   NZ: {
@@ -24,28 +24,28 @@ export const REGIONS = {
     places: ['auckland', 'wellington', 'christchurch', 'hamilton', 'dunedin', 'tauranga'],
     states: [], clearances: ['Confidential', 'Secret', 'Top Secret'], checks: ['policeCheck'], diversity: [],
     workRights: ['citizen', 'permanent-resident', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'nz', jobicy: 'new-zealand' }, timeZone: /^Pacific\/Auckland$/, locales: ['en-NZ']
+    feeds: { smartrecruiters: 'nz', jobicy: 'new-zealand', seek: 'www.seek.co.nz', adzuna: 'nz' }, timeZone: /^Pacific\/Auckland$/, locales: ['en-NZ']
   },
   GB: {
     name: 'United Kingdom', aliases: ['united kingdom', 'great britain', 'britain', 'england', 'scotland', 'UK', 'GB'],
     currency: 'GBP', retirement: 'pension', places: ['london', 'manchester', 'edinburgh', 'glasgow', 'bristol', 'leeds', 'birmingham', 'cambridge', 'oxford', 'belfast'],
     states: [], clearances: ['BPSS', 'CTC', 'SC', 'DV'], checks: ['backgroundCheck'], diversity: [],
     workRights: ['citizen', 'settled-status', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'gb', jobicy: 'uk' }, timeZone: /^Europe\/London$/, locales: ['en-GB']
+    feeds: { smartrecruiters: 'gb', jobicy: 'uk', adzuna: 'gb' }, timeZone: /^Europe\/London$/, locales: ['en-GB']
   },
   US: {
     name: 'United States', aliases: ['united states', 'united states of america', 'america', 'US', 'USA'], currency: 'USD', retirement: '401(k)',
     places: ['new york', 'san francisco', 'seattle', 'austin', 'boston', 'chicago', 'los angeles', 'denver', 'atlanta', 'washington dc'],
     states: [], clearances: ['Public Trust', 'Secret', 'Top Secret', 'TS/SCI'], checks: ['backgroundCheck'], diversity: ['veteran'],
     workRights: ['citizen', 'permanent-resident', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'us', jobicy: 'usa' }, timeZone: /^America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage)$/, locales: ['en-US']
+    feeds: { smartrecruiters: 'us', jobicy: 'usa', adzuna: 'us' }, timeZone: /^America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage)$/, locales: ['en-US']
   },
   CA: {
     name: 'Canada', aliases: ['canada'], currency: 'CAD', retirement: 'RRSP',
     places: ['toronto', 'vancouver', 'montreal', 'ottawa', 'calgary', 'edmonton', 'waterloo'],
     states: [], clearances: ['Reliability', 'Secret', 'Top Secret'], checks: ['backgroundCheck'], diversity: [],
     workRights: ['citizen', 'permanent-resident', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'ca', jobicy: 'canada' }, timeZone: /^America\/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax)$/, locales: ['en-CA', 'fr-CA']
+    feeds: { smartrecruiters: 'ca', jobicy: 'canada', adzuna: 'ca' }, timeZone: /^America\/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax)$/, locales: ['en-CA', 'fr-CA']
   },
   IE: {
     name: 'Ireland', aliases: ['ireland', 'IE'], currency: 'EUR', retirement: 'pension', places: ['dublin', 'cork', 'galway', 'limerick'],
@@ -56,23 +56,23 @@ export const REGIONS = {
     name: 'Germany', aliases: ['germany', 'deutschland'], currency: 'EUR', retirement: 'pension',
     places: ['berlin', 'munich', 'münchen', 'hamburg', 'frankfurt', 'cologne', 'köln', 'stuttgart'],
     states: [], clearances: [], checks: ['backgroundCheck'], diversity: [], workRights: ['citizen', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'de', jobicy: 'germany' }, timeZone: /^Europe\/Berlin$/, locales: ['de-DE']
+    feeds: { smartrecruiters: 'de', jobicy: 'germany', adzuna: 'de' }, timeZone: /^Europe\/Berlin$/, locales: ['de-DE']
   },
   FR: {
     name: 'France', aliases: ['france', 'FR'], currency: 'EUR', retirement: 'pension', places: ['paris', 'lyon', 'marseille', 'toulouse', 'nantes'],
     states: [], clearances: [], checks: ['backgroundCheck'], diversity: [], workRights: ['citizen', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'fr', jobicy: 'france' }, timeZone: /^Europe\/Paris$/, locales: ['fr-FR']
+    feeds: { smartrecruiters: 'fr', jobicy: 'france', adzuna: 'fr' }, timeZone: /^Europe\/Paris$/, locales: ['fr-FR']
   },
   SG: {
     name: 'Singapore', aliases: ['singapore', 'SG'], currency: 'SGD', retirement: 'CPF', places: [],
     states: [], clearances: [], checks: ['backgroundCheck'], diversity: [], workRights: ['citizen', 'permanent-resident', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'sg', jobicy: 'singapore' }, timeZone: /^Asia\/Singapore$/, locales: ['en-SG']
+    feeds: { smartrecruiters: 'sg', jobicy: 'singapore', adzuna: 'sg' }, timeZone: /^Asia\/Singapore$/, locales: ['en-SG']
   },
   IN: {
     name: 'India', aliases: ['india'], currency: 'INR', retirement: 'PF',
     places: ['bangalore', 'bengaluru', 'mumbai', 'delhi', 'new delhi', 'hyderabad', 'pune', 'chennai', 'gurgaon', 'gurugram', 'noida'],
     states: [], clearances: [], checks: ['backgroundCheck'], diversity: [], workRights: ['citizen', 'visa', 'needs-visa'],
-    feeds: { smartrecruiters: 'in', jobicy: 'india' }, timeZone: /^Asia\/(Kolkata|Calcutta)$/, locales: ['en-IN', 'hi-IN']
+    feeds: { smartrecruiters: 'in', jobicy: 'india', adzuna: 'in' }, timeZone: /^Asia\/(Kolkata|Calcutta)$/, locales: ['en-IN', 'hi-IN']
   }
 }
 
@@ -143,6 +143,7 @@ const INDEED = { AU: 'au.indeed.com', NZ: 'nz.indeed.com', GB: 'uk.indeed.com', 
   IE: 'ie.indeed.com', DE: 'de.indeed.com', FR: 'fr.indeed.com', SG: 'sg.indeed.com', IN: 'in.indeed.com' }
 const SEEK = { AU: 'www.seek.com.au', NZ: 'www.seek.co.nz' }
 const JORA = { AU: 'au.jora.com' }
+const EMPLOYMENT_HERO = new Set(['AU', 'NZ', 'GB', 'SG'])
 
 /** `[{ name, url }]` searches for `role` near `location` on the big job sites for the country ('' = LinkedIn + Indeed US). */
 export function searchLinks(country, { role = '', location = '' } = {}) {
@@ -153,7 +154,8 @@ export function searchLinks(country, { role = '', location = '' } = {}) {
     { name: 'LinkedIn', url: `https://www.linkedin.com/jobs/search/?keywords=${q}&location=${l}` },
     SEEK[c] && { name: 'SEEK', url: `https://${SEEK[c]}/jobs?keywords=${q}&where=${l}` },
     { name: 'Indeed', url: `https://${INDEED[c] ?? 'www.indeed.com'}/jobs?q=${q}&l=${l}` },
-    JORA[c] && { name: 'Jora', url: `https://${JORA[c]}/j?q=${q}&l=${l}` }
+    JORA[c] && { name: 'Jora', url: `https://${JORA[c]}/j?q=${q}&l=${l}` },
+    EMPLOYMENT_HERO.has(c) && { name: 'Employment Hero', url: `https://employmenthero.com/jobs/search/?q=${q}` }
   ].filter(Boolean)
 }
 

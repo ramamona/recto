@@ -42,7 +42,7 @@ const USAGE = `Usage:
                   [--submit] [--dry-run] [--log <applications.jsonl>]
   recto autoapply --bundle <recto-apply.json> [--submit] [--progress-json]
   recto discover [--profile <profile.json>] [--cv <in>] [--country <code>|any] [--companies <list.json>]
-                 [--out jobs.json] [--min-score <0-5>]
+                 [--out jobs.json] [--min-score <0-5>] [--seek]   (Adzuna: set ADZUNA_APP_ID and ADZUNA_APP_KEY)
 
 Input:  .cv.json (Recto), .json (Recto or JSON Resume), .md / .txt (Recto Markdown)
 Output: .pdf (needs Chrome/Chromium; set CHROME_PATH), .txt (ATS text), .tex (LaTeX), .json (JSON Resume), .cv.json (Recto)
@@ -300,7 +300,7 @@ async function fixtureFetch(path) {
   }
 }
 
-async function discoverJobs({ profile: profileArg, cv, country, companies: companiesPath, out = 'jobs.json', 'min-score': minScore, fixtures }) {
+async function discoverJobs({ profile: profileArg, cv, country, companies: companiesPath, out = 'jobs.json', 'min-score': minScore, fixtures, seek = false }) {
   const code = country == null ? undefined : /^any$/i.test(country) ? '' : countryOf(country)
   if (code === '' && !/^any$/i.test(country)) throw new UsageError(`unknown --country "${country}" (a preset code such as AU, or any)`)
   if (minScore != null && !Number.isFinite(Number(minScore))) throw new UsageError(`--min-score expects a number, got "${minScore}"`)
@@ -312,7 +312,14 @@ async function discoverJobs({ profile: profileArg, cv, country, companies: compa
   const file = cv ? await readInput(cv) : null
   const { results, errors } = await discover({
     companies, profile: prof, fetch: fixtures ? await fixtureFetch(fixtures) : globalThis.fetch,
-    settings: { country: code, minScore, feeds: { jobicy: { enabled: true } } },
+    settings: {
+      country: code, minScore,
+      feeds: {
+        jobicy: { enabled: true }, seek: { enabled: seek },
+        // Adzuna's free API key, from the environment so it stays out of shell history
+        adzuna: { enabled: !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY), appId: process.env.ADZUNA_APP_ID ?? '', appKey: process.env.ADZUNA_APP_KEY ?? '' }
+      }
+    },
     cv: file ? { source: file.content, doc: parse(file.content), layout: file.layout } : undefined,
     onProgress: ({ done, total }) => process.stderr.write(`\rscanned ${done}/${total}`)
   })
@@ -346,7 +353,7 @@ async function main(argv) {
       json: { type: 'boolean' }, job: { type: 'string' }, profile: { type: 'string' }, edits: { type: 'string' },
       'allow-new-facts': { type: 'boolean' }, set: { type: 'string', multiple: true }, file: { type: 'string' },
       cv: { type: 'string' }, country: { type: 'string' }, companies: { type: 'string' }, out: { type: 'string' },
-      'min-score': { type: 'string' }, fixtures: { type: 'string' }
+      'min-score': { type: 'string' }, fixtures: { type: 'string' }, seek: { type: 'boolean' }
     }
   })
   if (values.help) {

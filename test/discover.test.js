@@ -253,14 +253,14 @@ test('settings: defaults come from the profile; junk is dropped', () => {
   const profile = { targetRoles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid' }
   assert.deepEqual(normalizeDiscoverSettings(null, profile), {
     roles: ['Frontend Engineer'], locations: ['Berlin'], remote: 'hybrid', maxAgeDays: 30, minScore: 0, country: 'AU', boards: ATS,
-    feeds: { remotive: { enabled: false, query: '' }, arbeitnow: { enabled: false }, jobicy: { enabled: false } }
+    feeds: { remotive: { enabled: false, query: '' }, arbeitnow: { enabled: false }, jobicy: { enabled: false }, seek: { enabled: false }, adzuna: { enabled: false, appId: '', appKey: '' } }
   })
   assert.deepEqual(normalizeDiscoverSettings({
     roles: [' Designer ', 'Designer', 3], locations: [], remote: 'mars', maxAgeDays: -2, minScore: 9,
     feeds: { remotive: { enabled: true, query: ' react ' }, arbeitnow: { enabled: 'yes' } }
   }, profile), {
     roles: ['Designer'], locations: [], remote: 'hybrid', maxAgeDays: 30, minScore: 5, country: 'AU', boards: ATS,
-    feeds: { remotive: { enabled: true, query: 'react' }, arbeitnow: { enabled: false }, jobicy: { enabled: false } }
+    feeds: { remotive: { enabled: true, query: 'react' }, arbeitnow: { enabled: false }, jobicy: { enabled: false }, seek: { enabled: false }, adzuna: { enabled: false, appId: '', appKey: '' } }
   })
   // country: settings → profile → detected (browser) → DEFAULT_COUNTRY; '' = Any
   assert.equal(normalizeDiscoverSettings(null, { country: 'New Zealand' }, 'GB').country, 'NZ')
@@ -353,4 +353,32 @@ test('discover: boards limits the scan to the ticked ATS kinds', async () => {
   const companies = [{ source: 'greenhouse', board: 'a', name: 'A' }, { source: 'lever', board: 'b', name: 'B' }]
   await discover({ companies, settings: { boards: ['lever'] }, cv, now: NOW, fetch })
   assert.deepEqual(hits, ['api.lever.co'])
+})
+
+test('discover: SEEK (opt-in) and Adzuna (with a key) search per role × place for the country', async () => {
+  const seek = fixture('seek')
+  seek.data.forEach(j => { j.listingDate = NOW.toISOString(); j.title = 'Platform Engineer' })
+  const adzuna = { results: [{ id: '42', title: 'Platform <strong>Engineer</strong>', company: { display_name: 'Acme' },
+    location: { display_name: 'Sydney, New South Wales' }, redirect_url: 'https://www.adzuna.com.au/details/42', created: NOW.toISOString(),
+    description: 'Build the platform.', salary_min: 150000, salary_max: 170000 }] }
+  const urls = []
+  const fetch = async url => {
+    urls.push(url)
+    const body = url.includes('seek.com.au') ? seek : url.includes('api.adzuna.com') ? adzuna : {}
+    return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) }
+  }
+  const settings = { country: 'AU', roles: ['Platform Engineer'], locations: ['Sydney'],
+    feeds: { seek: { enabled: true }, adzuna: { enabled: true, appId: 'id1', appKey: 'key1' } } }
+  const r = await discover({ companies: [], settings, cv, now: NOW, fetch })
+  assert.deepEqual(urls.filter(u => u.includes('seek')).map(u => new URL(u).searchParams.get('page')), ['1', '2'])
+  assert.ok(urls.some(u => u.startsWith('https://www.seek.com.au/api/jobsearch/v5/search?keywords=Platform%20Engineer&where=Sydney')))
+  assert.ok(urls.some(u => u.startsWith('https://api.adzuna.com/v1/api/jobs/au/search/1?app_id=id1&app_key=key1')))
+  const bySource = src => r.results.filter(x => x.posting.source === src).map(x => x.posting)
+  assert.ok(bySource('seek').length >= 1 && bySource('seek').every(p => /^https:\/\/www\.seek\.com\.au\/job\/\d+$/.test(p.url) && /Australia/.test(p.location)))
+  assert.deepEqual(bySource('adzuna').map(p => [p.title, p.company, p.salary]), [['Platform Engineer', 'Acme', '150000–170000']])
+  // off by default; Adzuna needs both keys; no SEEK site for a country without one
+  const none = []
+  await discover({ companies: [], settings: { country: 'AU', feeds: { adzuna: { enabled: true, appId: 'x' } } }, cv, now: NOW, fetch: async u => { none.push(u); return { ok: true, status: 200, json: async () => ({}) } } })
+  await discover({ companies: [], settings: { country: 'GB', feeds: { seek: { enabled: true } } }, cv, now: NOW, fetch: async u => { none.push(u); return { ok: true, status: 200, json: async () => ({}) } } })
+  assert.deepEqual(none, [])
 })

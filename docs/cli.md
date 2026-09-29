@@ -12,7 +12,7 @@ node cli/recto.js apply <in> --edits <edits.json> [--allow-new-facts] [-o <out>]
 node cli/recto.js profile [--set key=value ...] [--file <profile.json>] [--json]
 node cli/recto.js autoapply --jobs <jobs.json> --cv <in> [--profile <profile.json>] [--min-score 4] [--max 5] [--submit] [--dry-run] [--log <applications.jsonl>]
 node cli/recto.js autoapply --bundle <recto-apply.json> [--submit] [--progress-json]
-node cli/recto.js discover [--profile <profile.json>] [--cv <in>] [--country <code>|any] [--companies <list.json>] [--out jobs.json] [--min-score <0-5>]
+node cli/recto.js discover [--profile <profile.json>] [--cv <in>] [--country <code>|any] [--companies <list.json>] [--out jobs.json] [--min-score <0-5>] [--seek]
 node cli/recto.js --help
 ```
 
@@ -123,6 +123,7 @@ node cli/recto.js discover --profile profile.json --cv cv.cv.json --min-score 3.
 | `--profile <file>` | Candidate profile. Defaults to `./profile.json` when it exists; supplies the default country, target roles and deal-breakers. |
 | `--cv <file>` | CV to score the results against. Without one, every posting is evaluated against no CV text, so scores come out low and aren't meaningful — pass a CV for a useful ranking. |
 | `--country <code|any>` | A country preset code (`AU`, `US`, …) or `any` for no country filter. Defaults to the profile's country, then the built-in default. (The app's Discover view also tries the browser's time zone and language first.) |
+| `--seek` | Also search SEEK for your roles and locations, where the country preset has it (opt-in: SEEK has no public API and its terms don't allow automated access). Adzuna joins the scan when `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` are set (free key from developer.adzuna.com). |
 | `--companies <file>` | A company list JSON (`{ source, board, name }[]`) to scan instead of the built-in starter list. |
 | `--out <file>` | Where to write the results (default `jobs.json`). |
 | `--min-score <0-5>` | Drop results scoring below this. |
