@@ -4,9 +4,15 @@ The career suite is everything in Recto that goes beyond a single CV: a detailed
 
 Everything here follows the same rules as the rest of Recto: it's local-first and works with no AI connected, a human decides every application and every accepted AI suggestion, and Recto never solves a CAPTCHA, signs you in or creates an account anywhere. The mode-by-mode parity with [career-ops](https://github.com/career-ops-hq/career-ops) — the CLI tool this suite draws its feature set from — is listed at the bottom of this page.
 
+## Navigation
+
+The top bar's main strip — **CV · Discover · Pipeline · Jobs · Insights · Profile** — also sits at the top of every full-screen view, so each tool is one click from any other. Leaving the Profile this way saves it. **File** (Open, Save, Save as), **Import**, **Export** and **Templates** stay on the left.
+
+Your CV is saved in this browser as you type and comes back when you reopen Recto. If you close the tab with edits that aren't in a saved file yet, the browser asks you to confirm first.
+
 ## Candidate profile
 
-Open **Candidate profile** from the top bar, the command bar (`⌘K` / `Ctrl K`), or the Job tab. It replaced the old single-page applicant form with a full view: a section list on the left, and a country select at the top that drives everything country-specific.
+Open **Profile** from the main strip, the command bar (`⌘K` / `Ctrl K`), or the Job tab. It replaced the old single-page applicant form with a full view: a section list on the left, and a country select at the top that drives everything country-specific.
 
 | Section | What it holds |
 |---|---|
@@ -30,6 +36,11 @@ The country select at the top of the profile — and Discover's own country filt
 
 Every answer you give — filling in an application pack, the apply queue's "missing answers" step, or the profile itself — is saved to the answer bank and reused the next time a similar question comes up, in any pack and in `recto autoapply`. "Similar" means the same underlying rule (for example, two different postings both asking about sponsorship) or a close enough wording match; a multiple-choice question maps the saved answer onto whatever options that form offers, and only if it can. In a pack, each editable answer has a **Remember for similar questions** checkbox, on by default, and its source badge (`profile`, `cv`, `rule`, `bank` or `ai`) shows where it came from. Manage the bank directly from **Saved answers**: search, edit, delete, or import/export it as JSON to move it between browsers.
 
+New questions are captured as you apply:
+
+- **Still to answer** (top of Saved answers) lists every question in your application packs that no saved answer covers yet, once each. Answer it there and every pack, the apply queue and autoapply reuse it.
+- While `recto autoapply` waits for you in the browser, any question you fill in yourself on the employer's form is learned: it's reused for the rest of the run, written back to the profile file (`--profile`) or bundle, and — through the apply queue — added to your profile in the app. Passwords, card, bank, tax-file, passport and licence numbers are never captured.
+
 ### Story bank
 
 Keep a small set of STAR+R stories — real examples from your CV, ready to reuse for "tell me about a time…" questions. Add them by hand, or press **Draft from my CV (AI)**, which only appears once a provider is connected: it proposes stories citing the CV lines they're built from, and any draft that can't cite a real line is dropped before you see it.
@@ -43,15 +54,23 @@ Discover (top bar, or the command bar) scans public job boards and ranks what it
 | Greenhouse, Lever, Ashby | The public job-board API of each company in your list |
 | SmartRecruiters | Company posting boards, filtered by country when one is active |
 | Workable | Company posting boards |
-| Jobicy | A remote-jobs feed, filtered by the active country's geo code; off by default, toggle it in Discover's settings |
+| Jobicy | A remote-jobs feed, filtered by the active country's geo code (on for your first scan) |
 
-The starter company list (`data/companies.json`) is a starting point; every source and filter is country-neutral — set your country preset and Discover filters, ranks and labels for that country. Add your own companies with the editor, or use **Find boards**: type a company name and Recto probes it across every source (Greenhouse, Lever, Ashby, SmartRecruiters, Workable) for a public board with open roles, so you don't have to guess the board name.
+**Where to search** has a checkbox per job-board type (with how many companies of each are in your list) and per feed — tick as many as you like. The company list itself is folded away under **Company list**; the starter list (`data/companies.json`) is a starting point, and every source and filter is country-neutral. Add your own companies with the editor, or use **Find boards**: type a company name and Recto probes every board type for a public board with open roles.
 
-Filters, scoring, legitimacy checks and the Save / Skip / Prepare application actions are unchanged from before — see [Discover & apply](discover-apply.md). What's new: a checkbox on every result, **Select ★≥ {n}** to pick every result at or above a score, and **Apply to selected**, which saves the picked postings and opens the [apply queue](#one-click-apply) for them. A **Pipeline inbox** button next to Scan opens the tool below.
+**Target roles** and **Locations** take several values each: type and press Enter, or pick a suggestion (locations suggest the country preset's cities and states). With locations set, results stay within those places, plus remote roles open to your country — a remote role whose location or title names somewhere else ("Remote – Spain", "SRE — UK") is left out.
 
-## Pipeline inbox
+**Also search on** links to the same search on the big job sites that have no open job data (LinkedIn and Indeed everywhere; SEEK and Jora where the preset has them). Recto can't scan those sites; paste the links you like into [Pipeline](#pipeline).
 
-For postings you already have links or text for — from a newsletter, a recruiter email, a spreadsheet — **Pipeline inbox** (Discover's header, or the command bar) is a paste-and-process queue instead of a scan. Paste one link per line, or whole job descriptions separated by a blank line, then **Process all**. Each item is fetched (or asked for the text, when it can't be), parsed, evaluated locally, scored against your CV, optionally deep-evaluated with AI when you tick that on, saved to the tracker and built into an application pack — automatically, two at a time. Duplicates against your tracker or the current queue are flagged, not reprocessed. A failed item keeps its text in an editable box with **Retry**. When it's done, **Apply to processed** sends everything still in Saved to the apply queue.
+Filters, scoring, legitimacy checks and the Save / Skip / Prepare application actions work as described in [Discover & apply](discover-apply.md). Every result has a checkbox; **Select ★≥ {n}** picks every result at or above a score, and **Apply to selected** saves the picked postings and opens the [apply queue](#one-click-apply) for them.
+
+## Pipeline
+
+For jobs you found anywhere else — LinkedIn, SEEK, Indeed, a recruiter email, a company site — **Pipeline** works in three steps:
+
+1. **Paste jobs**: links, one per line, or whole job descriptions separated by a blank line. Press **Check and save**. (With an AI provider connected you can also tick *Also evaluate with AI*.)
+2. **Results**: Recto reads each job, scores it against your CV and saves it to Jobs with an application pack — two at a time. Jobs already in your tracker are flagged, not repeated. If a site blocks reading, the item asks for the job description instead, with **Retry**.
+3. **Apply**: **Apply to N saved jobs** sends them to the apply queue.
 
 ## One-click apply
 
@@ -131,7 +150,7 @@ Recto's career suite reimplements every mode of [career-ops](https://github.com/
 
 | career-ops | Recto |
 |---|---|
-| `auto-pipeline`, `pipeline`, `batch` | [Pipeline inbox](#pipeline-inbox) |
+| `auto-pipeline`, `pipeline`, `batch` | [Pipeline](#pipeline) |
 | `oferta` | The Job tab's local evaluation (see [assist.md](assist.md#job-evaluation)) |
 | `ofertas` | [Compare](#compare) |
 | `scan`, `discover` | [Discover](#discover), Find boards, [`recto discover`](#recto-discover) |

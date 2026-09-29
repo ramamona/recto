@@ -1,13 +1,14 @@
 // Candidate profile view (review-jobs spec 3, discover-apply spec 3/5, career-suite spec §3): a full-screen form with a
 // section nav, country-driven preset fields, a completeness meter, saved answers and a STAR+R story bank. Feeds the Job
 // tab's gates, application packs, the apply queue and `recto autoapply`.
+import { hubNav } from './hub-nav.js'
 import { h, uid, debounce } from './dom.js'
 import {
   loadProfile, saveProfile, normalizeProfile, prefillProfile, activeCountry, REMOTE, EEO_FIELDS, EEO_EXTRA,
   WORK_RIGHTS, EMPLOYMENT_TYPES, TRAVEL, SALARY_BASIS, CHECK_STATES, REFEREES_DEFAULT, MAX_STORIES
 } from '../profile.js'
 import { REGIONS, countryOf } from '../jobs/region.js'
-import { completeness, exportAnswers, importAnswers } from '../jobs/answers.js'
+import { completeness, exportAnswers, importAnswers, findAnswer, remember, normalizeQuestion } from '../jobs/answers.js'
 import { download, openFile } from '../io/files.js'
 
 const LISTS = ['authorizedIn', 'locations', 'targetRoles', 'dealBreakers', 'languages']
@@ -82,7 +83,8 @@ export function openProfileDialog(ctx, { onSave, doc } = {}) {
 
   const dialog = h('dialog', { class: 'cp', 'aria-labelledby': titleId },
     h('header', { class: 'cp-head' },
-      h('h1', { class: 'cp-head__title', id: titleId }, t('profile.title')),
+      h('h1', { class: 'visually-hidden', id: titleId }, t('profile.title')),
+      hubNav(ctx, 'profile', { beforeLeave: () => save() }),
       h('label', { class: 'cp-country', htmlFor: countrySelect.id }, t('profile.country'), countrySelect),
       h('div', { class: 'cp-meter' }, meterBar, meterText, missing),
       h('span', { class: 'ui-spacer' }),
@@ -228,8 +230,46 @@ export function openProfileDialog(ctx, { onSave, doc } = {}) {
       ctx.toast?.(t('profile.answers.importFailed'))
     }
   }
+  // Questions from application packs that nothing answers yet: answer each once here and every pack reuses it
+  const todoList = h('div', { class: 'cp-cards' })
+  function openQuestions() {
+    const seen = new Set()
+    return (ctx.tracker?.list() ?? []).flatMap(j => j.pack?.answers ?? [])
+      .filter(x => !String(x.answer ?? '').trim() && !/file/.test(x.type ?? '') && x.question)
+      .filter(x => {
+        const key = normalizeQuestion(x.question)
+        if (!key || seen.has(key) || findAnswer(bank, x.question, { options: x.options ?? [] })) return false
+        seen.add(key)
+        return true
+      })
+  }
+  function renderTodo() {
+    const open = openQuestions()
+    todoList.replaceChildren(open.length ? h('p', { class: 'ui-muted', role: 'status' }, t('profile.todo.count', { n: open.length }))
+      : h('p', { class: 'ui-muted' }, t('profile.todo.none')),
+    ...open.slice(0, 50).map(x => {
+      const id = uid('cp-todo')
+      const control = x.options?.length
+        ? h('select', { class: 'ui-select', id }, h('option', { value: '' }, '—'), x.options.map(o => h('option', { value: o }, o)))
+        : h('input', { class: 'ui-input', type: 'text', id, maxLength: 5000 })
+      const keep = () => {
+        if (!control.value.trim()) return control.focus()
+        bank = remember(bank, { question: x.question, answer: control.value, options: x.options }, new Date())
+        renderTodo()
+        renderAnswers()
+        refreshMeter()
+      }
+      control.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); keep() } })
+      return h('div', { class: 'cp-card' }, h('label', { class: 'ui-label', htmlFor: id }, x.question, x.required ? ' *' : ''), control,
+        h('div', { class: 'cp-card__foot' }, btn(t('profile.todo.save'), keep, 'profile-todo-save')))
+    }))
+  }
   const answers = () => section('answers',
     h('p', { class: 'ui-muted ai-hint' }, t('profile.answers.intro')),
+    h('h3', { class: 'cp-sub' }, t('profile.todo.title')),
+    h('p', { class: 'ui-muted ai-hint' }, t('profile.todo.hint')),
+    todoList,
+    h('h3', { class: 'cp-sub' }, t('profile.answers.saved')),
     h('div', { class: 'cp-toolbar' }, search,
       btn(t('profile.answers.import'), importBank, 'profile-answers-import'),
       btn(t('profile.answers.export'), () => download('recto-answers.json', exportAnswers(bank), 'application/json'), 'profile-answers-export')),
@@ -292,6 +332,7 @@ export function openProfileDialog(ctx, { onSave, doc } = {}) {
   function renderForm() {
     form.replaceChildren(identity(), rights(), pay(), checks(), background(), preferences(), diversity(), answers(), storiesSection())
     renderAnswers()
+    renderTodo()
     renderStories()
     refreshMeter()
   }

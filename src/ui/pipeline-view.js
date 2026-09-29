@@ -1,6 +1,7 @@
 // Pipeline inbox (career-suite spec §6 auto-pipeline/pipeline/batch): paste many job links or descriptions, then
 // "Process all" fetches, parses, evaluates (local; AI too when the user ticks it), saves to the tracker with source
 // 'pipeline' and builds an application pack for each. Failed items keep their raw text for an edit and retry.
+import { hubNav } from './hub-nav.js'
 import { h, uid } from './dom.js'
 import { isJobUrl, probeProxy, mergeJob, withSignal, evaluationRecord } from './job-panel.js'
 import { fetchJob } from '../jobs/fetch.js'
@@ -70,6 +71,8 @@ export function openPipeline(store, ctx, { tracker = ctx.tracker } = {}) {
     class: 'ui-textarea pl-input', rows: 8, placeholder: t('pipeline.placeholder'), 'aria-label': t('pipeline.input'), dataset: { field: 'pipeline-input' }
   })
   const controls = h('div', { class: 'pl-controls' })
+  const summary = h('span', { class: 'ui-muted pl-summary' })
+  const applyStep = h('section', { class: 'pl-step', hidden: true })
   const list = h('ol', { class: 'pl-rows', 'aria-label': t('pipeline.queue') })
   const live = h('p', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite' })
 
@@ -181,20 +184,22 @@ export function openPipeline(store, ctx, { tracker = ctx.tracker } = {}) {
   const btn = (label, onClick, action, cls = '') => h('button', { class: `ui-btn ui-btn--sm ${cls}`.trim(), type: 'button', dataset: { action }, onClick }, label)
   const doneIds = () => items.filter(i => i.state === 'done' && tracker.get(i.jobId)?.status === 'saved').map(i => i.jobId)
 
+  // One button: whatever is pasted joins the list and every waiting item is checked and saved
   function renderControls() {
     const ai = client()
-    const queued = items.filter(i => i.state === 'queued').length
     const ready = doneIds()
     controls.replaceChildren(...[
-      btn(t('pipeline.add'), enqueue, 'pipeline-add'),
-      btn(running ? t('app.cancel') : t('pipeline.processAll', { n: queued }), processAll, 'pipeline-process', running ? '' : 'ui-btn--primary'),
-      h('label', { class: 'ai-row pl-deep' },
-        h('input', { type: 'checkbox', checked: deep && !!ai, disabled: !ai || !!running, dataset: { field: 'pipeline-deep' }, onChange: e => { deep = e.target.checked } }),
-        t('pipeline.deep')),
-      !ai && ctx.openAiDialog && btn(t('pipeline.connect'), () => ctx.openAiDialog(), 'pipeline-connect'),
-      h('span', { class: 'ui-spacer' }),
-      ready.length > 0 && ctx.openApplyQueue && btn(t('pipeline.apply', { n: ready.length }), () => ctx.openApplyQueue({ jobIds: ready }), 'pipeline-apply')
+      btn(running ? t('app.cancel') : t('pipeline.check'), processAll, 'pipeline-process', running ? '' : 'ui-btn--primary'),
+      ai && h('label', { class: 'ai-row pl-deep' },
+        h('input', { type: 'checkbox', checked: deep, disabled: !!running, dataset: { field: 'pipeline-deep' }, onChange: e => { deep = e.target.checked } }),
+        t('pipeline.deep'))
     ].filter(Boolean))
+    const counts = ['done', 'failed', 'duplicate'].map(k => [k, items.filter(i => i.state === k).length]).filter(([, n]) => n)
+    summary.textContent = counts.map(([k, n]) => t(`pipeline.count.${k}`, { n })).join(' · ')
+    applyStep.hidden = !ready.length || !ctx.openApplyQueue
+    applyStep.replaceChildren(h('h2', { class: 'pl-step__title' }, t('pipeline.step3')),
+      h('p', { class: 'ui-muted ai-hint' }, t('pipeline.step3.hint')),
+      btn(t('pipeline.apply', { n: ready.length }), () => ctx.openApplyQueue({ jobIds: ready }), 'pipeline-apply', 'ui-btn--primary'))
   }
 
   function row(item) {
@@ -233,11 +238,17 @@ export function openPipeline(store, ctx, { tracker = ctx.tracker } = {}) {
 
   const dialog = h('dialog', { class: 'board pipeline', 'aria-labelledby': titleId },
     h('header', { class: 'board-head' },
-      h('h1', { class: 'board-head__title', id: titleId }, t('pipeline.title')),
-      h('span', { class: 'ui-muted' }, t('pipeline.intro')),
+      h('h1', { class: 'visually-hidden', id: titleId }, t('pipeline.title')),
+      hubNav(ctx, 'pipeline'),
+      h('span', { class: 'ui-muted board-head__intro' }, t('pipeline.intro')),
       h('span', { class: 'ui-spacer' }),
-      btn(t('board.close'), () => close(), 'pipeline-close', 'ui-btn--primary')),
-    h('div', { class: 'pl-body' }, input, controls, list),
+      btn(t('board.close'), () => close(), 'pipeline-close')),
+    h('div', { class: 'pl-body' },
+      h('section', { class: 'pl-step' }, h('h2', { class: 'pl-step__title' }, t('pipeline.step1')),
+        h('p', { class: 'ui-muted ai-hint' }, t('pipeline.step1.hint')), input, controls),
+      h('section', { class: 'pl-step' }, h('h2', { class: 'pl-step__title' }, t('pipeline.step2'), ' ', summary),
+        h('p', { class: 'ui-muted ai-hint' }, t('pipeline.step2.hint')), list),
+      applyStep),
     live)
   dialog.addEventListener('close', () => running?.abort(), { once: true })
   render()

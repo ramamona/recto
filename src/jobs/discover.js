@@ -1,6 +1,6 @@
 // Discovery engine (discover-apply spec 2): scan company boards + remote feeds, filter by the profile,
 // drop what the tracker already has, evaluate locally and rank. Country-aware per career-suite spec §2. Pure except the injected fetch.
-import { SOURCES, TIMEOUT_MS, getJson, parsePostings, normalizeCompanies, fetchPostings, fetchDetails } from './sources.js'
+import { ATS, SOURCES, TIMEOUT_MS, getJson, parsePostings, normalizeCompanies, fetchPostings, fetchDetails } from './sources.js'
 import { DEFAULT_COUNTRY, countryOf, regionOf, mentionsCountry, inArea, namesPlace } from './region.js'
 import { canonicalTokens } from './parse.js'
 import { evaluateJob } from './evaluate.js'
@@ -24,7 +24,7 @@ const hasWord = (hay, w) => new RegExp(`(?<![\\p{L}\\p{N}])${escape(w)}(?![\\p{L
 // ---- settings
 
 /**
- * `{ roles, locations, remote, maxAgeDays, minScore, country, feeds }`; roles/locations/remote default from the profile.
+ * `{ roles, locations, remote, maxAgeDays, minScore, country, boards, feeds }` (`boards`: which ATS kinds to scan); roles/locations/remote default from the profile.
  * `country` is a preset code or '' (Any); unset → the profile's country → `detected` (the browser's, UI only) → DEFAULT_COUNTRY.
  */
 export function normalizeDiscoverSettings(s, profile, detected = '') {
@@ -37,6 +37,7 @@ export function normalizeDiscoverSettings(s, profile, detected = '') {
     maxAgeDays: age > 0 ? age : MAX_AGE_DAYS,
     minScore: Number.isFinite(min) ? Math.min(5, Math.max(0, min)) : 0,
     country: o.country === '' ? '' : countryOf(o.country) || countryOf(p.country) || countryOf(detected) || DEFAULT_COUNTRY,
+    boards: Array.isArray(o.boards) ? ATS.filter(a => o.boards.includes(a)) : [...ATS],
     feeds: {
       remotive: { enabled: obj(f.remotive).enabled === true, query: str(obj(f.remotive).query).trim() },
       arbeitnow: { enabled: obj(f.arbeitnow).enabled === true },
@@ -76,11 +77,13 @@ function roleOk(title, roles) {
 }
 
 // ponytail: a preferred location matches on its first comma part ("Berlin, Germany" → Berlin) as a word; a geocoder would be exact.
-// With a country: the location names it (or one of its places), or it's remote within its area or naming no country/area at all.
+// Locations set: only those places. None: anywhere in the country. Remote roles count when open to the country: its
+// name or area, or no place at all — in the location *and* the title ("Remote SRE — UK" is not open to Australia).
 function placeOk(p, { locations, remote, country }) {
   const listed = locations.some(l => hasWord(p.location, l.split(',')[0].trim()))
-  const here = listed || (country ? mentionsCountry(p.location, country) : !locations.length)
-  const away = p.remote === true && (!country || here || inArea(p.location, country) || !namesPlace(p.location))
+  const here = locations.length ? listed : country ? mentionsCountry(p.location, country) : true
+  const openTo = where => !country || mentionsCountry(where, country) || inArea(where, country) || !namesPlace(where)
+  const away = p.remote === true && (listed || openTo(p.location)) && openTo(p.title)
   if (remote === 'remote') return away
   if (remote === 'onsite') return p.remote !== true && here
   if (remote === 'hybrid') return here
@@ -92,7 +95,7 @@ const fresh = (p, now, days) => !p.postedAt || +now - Date.parse(p.postedAt) <= 
 // ---- scan
 
 function tasksFor(companies, s) {
-  const tasks = normalizeCompanies(companies).map(c => ({ source: c.source, board: c.board, company: c }))
+  const tasks = normalizeCompanies(companies).filter(c => (s.boards ?? ATS).includes(c.source)).map(c => ({ source: c.source, board: c.board, company: c }))
   const { remotive, arbeitnow, jobicy } = s.feeds
   if (remotive.enabled) tasks.push({ source: 'remotive', board: 'remotive', url: SOURCES.remotive.listUrl(remotive.query || s.roles[0] || '') })
   if (arbeitnow.enabled) tasks.push({ source: 'arbeitnow', board: 'arbeitnow', url: SOURCES.arbeitnow.listUrl(1) })

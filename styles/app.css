@@ -291,3 +291,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media print {
   .app-banners { display: none !important; }
 }
+
+/* primary navigation (hub-nav.js): top bar and every full-screen view */
+.hub-nav { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--ui-surface-2, var(--ui-desk)); flex: none; }
+.hub-nav__item { border: 0; background: none; color: var(--ui-muted); font: inherit; font-weight: 550; padding: 5px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.hub-nav__item:hover { color: var(--ui-text); background: var(--ui-surface); }
+.hub-nav__item.is-current { color: var(--ui-text); background: var(--ui-surface); box-shadow: 0 0 0 1px var(--ui-border); }
+.hub-nav__item:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+.board-head__intro { font-size: var(--ui-size-sm); }
+@media (max-width: 1100px) { .board-head__intro { display: none; } }
+/* the main strip and AI button keep their size; the save status gives way first */
+.app-top > .ui-btn, .app-ai { flex: none; }
+.app-status { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1280px) { .app-status { display: none; } }

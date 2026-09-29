@@ -2,10 +2,11 @@
 // right: Scan with progress, filter chips and the ranked feed with Save · Skip · Prepare application per card.
 // Career-suite spec §2: country select, Jobicy feed, SmartRecruiters/Workable boards and "Find boards".
 // Career-suite spec §7: card checkboxes, "Select ★≥ n" and "Apply to selected (n)" (apply queue); link to the Pipeline inbox.
+import { hubNav } from './hub-nav.js'
 import { h, uid, replaceChildren } from './dom.js'
 import { loadProfile, REMOTE } from '../profile.js'
 import { openFile, download } from '../io/files.js'
-import { REGIONS, detectCountry } from '../jobs/region.js'
+import { REGIONS, detectCountry, searchLinks, placeSuggestions } from '../jobs/region.js'
 
 const DAY = 864e5
 const GOOD_SCORE = 4 // the ★ chip: "apply"-level jobs only
@@ -70,6 +71,7 @@ export async function openDiscover(store, ctx) {
   let progress = null // { done, total }
   const chips = { score: false, remote: false, hideSaved: false }
   const selected = new Set() // posting ids ticked for "Apply to selected"
+  let companiesOpen = false
   const finder = { name: '', busy: null, found: null } // busy: AbortController; found: findBoards() result
   const titleId = uid('discover')
 
@@ -93,10 +95,30 @@ export async function openDiscover(store, ctx) {
     return h('div', { class: 'ai-field' }, h('label', { class: 'ui-label', htmlFor: control.id }, label), control,
       hint && h('p', { class: 'ui-muted ai-hint' }, hint))
   }
-  const listInput = (key, placeholder) => h('input', {
-    class: 'ui-input', type: 'text', value: settings[key].join(', '), placeholder, dataset: { field: key },
-    onChange: e => setSettings({ [key]: splitList(e.target.value) })
-  })
+  // Several values as removable chips; Enter, a comma or picking a suggestion adds one
+  function chipInput(key, placeholder, suggestions = []) {
+    const listId = uid('dl')
+    const add = raw => {
+      const more = splitList(raw).filter(v => !settings[key].some(x => x.toLowerCase() === v.toLowerCase()))
+      if (!more.length) return
+      setSettings({ [key]: [...settings[key], ...more] })
+      renderSettings()
+      settingsCol.querySelector(`[data-field="${key}"]`)?.focus()
+    }
+    const input = h('input', {
+      class: 'ui-input dc-chips__input', type: 'text', placeholder, list: listId, dataset: { field: key }, autocomplete: 'off',
+      onKeydown: e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(e.target.value) } },
+      // picking a suggestion is an input without typing (Chrome: insertReplacementText; Safari/Firefox: no inputType)
+      onInput: e => { if (!e.inputType || e.inputType === 'insertReplacementText') add(e.target.value) },
+      onChange: e => add(e.target.value)
+    })
+    return h('div', { class: 'dc-chips' },
+      settings[key].map((v, i) => h('span', { class: 'dc-chip' }, v, h('button', {
+        class: 'dc-chip__x', type: 'button', 'aria-label': t('discover.chip.removeValue', { value: v }),
+        onClick: () => { setSettings({ [key]: settings[key].filter((_, k) => k !== i) }); renderSettings() }
+      }, '×'))),
+      input, h('datalist', { id: listId }, suggestions.map(v => h('option', { value: v }))))
+  }
   const numInput = (key, min, max, step) => h('input', {
     class: 'ui-input dc-num', type: 'number', min, max, step, value: settings[key], dataset: { field: key },
     onChange: e => { setSettings({ [key]: e.target.value }); e.target.value = settings[key] }
@@ -118,8 +140,8 @@ export async function openDiscover(store, ctx) {
     }
     board.dataset.field = 'board'
     board.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add() } })
-    return [
-      h('h2', {}, t('discover.companies', { n: companies.length })),
+    return [h('details', { class: 'dc-company-list', open: companiesOpen, onToggle: e => { companiesOpen = e.target.open } },
+      h('summary', {}, t('discover.companies', { n: companies.length })),
       h('p', { class: 'ui-muted ai-hint' }, t('discover.companies.hintAll')),
       companies.length ? h('ul', { class: 'dc-companies' }, companies.map((c, i) => h('li', {},
         h('span', { title: `${SOURCE_NAMES[c.source]} · ${c.board}` }, c.name || c.board),
@@ -135,8 +157,7 @@ export async function openDiscover(store, ctx) {
         h('button', { class: 'ui-btn ui-btn--sm', type: 'button', onClick: importCompanies }, t('jobs.import')),
         h('button', { class: 'ui-btn ui-btn--sm', type: 'button', onClick: () => download('recto-companies.json', sources.exportCompanies(companies), 'application/json') }, t('jobs.export')),
         starter.length > 0 && h('button', { class: 'ui-btn ui-btn--sm', type: 'button', onClick: () => setCompanies(starter) }, t('discover.starter'))),
-      ...boardFinder()
-    ]
+      ...boardFinder())]
   }
 
   // "Find boards": probe a company name's slugs on every ATS, then Add the boards that have jobs
@@ -200,30 +221,44 @@ export async function openDiscover(store, ctx) {
     const remotive = settings.feeds.remotive
     const remote = h('select', { class: 'ui-select', dataset: { field: 'remote' }, onChange: e => setSettings({ remote: e.target.value }) },
       REMOTE.map(r => h('option', { value: r, selected: r === settings.remote }, t(`profile.remote.${r}`))))
-    const country = h('select', { class: 'ui-select', dataset: { field: 'country' }, onChange: e => setSettings({ country: e.target.value }) },
+    const country = h('select', { class: 'ui-select', dataset: { field: 'country' }, onChange: e => { setSettings({ country: e.target.value }); renderSettings() } },
       h('option', { value: '', selected: settings.country === '' }, t('discover.country.any')),
       Object.entries(REGIONS).sort(([, a], [, b]) => a.name.localeCompare(b.name))
         .map(([code, r]) => h('option', { value: code, selected: code === settings.country }, r.name)))
     const toggle = (name, label) => h('label', { class: 'ai-row' },
       h('input', { type: 'checkbox', checked: settings.feeds[name].enabled, dataset: { feed: name }, onChange: e => setFeed(name, { enabled: e.target.checked }) }), label)
+    const perSource = src => companies.filter(c => c.source === src).length
+    const boardToggle = src => h('label', { class: 'ai-row' },
+      h('input', {
+        type: 'checkbox', checked: settings.boards.includes(src), dataset: { board: src },
+        onChange: e => setSettings({ boards: e.target.checked ? [...settings.boards, src] : settings.boards.filter(b => b !== src) })
+      }), SOURCE_NAMES[src], h('span', { class: 'ui-muted' }, ` (${perSource(src)})`))
+    const roleSuggestions = loadProfile().targetRoles
     replaceChildren(settingsCol,
       h('h2', {}, t('discover.filters')),
-      field(t('discover.roles'), listInput('roles', t('discover.roles.placeholder')), t('discover.roles.hint')),
+      field(t('discover.roles'), chipInput('roles', t('discover.roles.placeholder'), roleSuggestions), t('discover.roles.hint')),
       field(t('discover.country'), country, t('discover.country.hint')),
-      field(t('discover.locations'), listInput('locations', t('discover.locations.placeholder'))),
+      field(t('discover.locations'), chipInput('locations', t('discover.locations.placeholder'), placeSuggestions(settings.country)), t('discover.locations.hint')),
       field(t('profile.remote'), remote),
       h('div', { class: 'dc-row' },
         field(t('discover.maxAge'), numInput('maxAgeDays', 1, 365, 1)),
         field(t('discover.minScore'), numInput('minScore', 0, 5, 0.5))),
+      h('h2', {}, t('discover.sources')),
+      h('p', { class: 'ui-muted ai-hint' }, t('discover.sources.hint')),
+      h('div', { class: 'dc-sources' }, sources.ATS.map(boardToggle)),
       companyEditor(),
-      h('h2', {}, t('discover.feeds')),
+      h('h3', { class: 'dc-sub' }, t('discover.feeds')),
       toggle('remotive', t('discover.feed.remotive')),
       field(t('discover.feed.query'), h('input', {
         class: 'ui-input', type: 'text', value: remotive.query, placeholder: settings.roles[0] ?? '',
         onChange: e => setFeed('remotive', { query: e.target.value })
       })),
       toggle('arbeitnow', t('discover.feed.arbeitnow')),
-      toggle('jobicy', t('discover.feed.jobicy')))
+      toggle('jobicy', t('discover.feed.jobicy')),
+      h('h3', { class: 'dc-sub' }, t('discover.elsewhere')),
+      h('p', { class: 'ui-muted ai-hint' }, t('discover.elsewhere.hint')),
+      h('div', { class: 'dc-row dc-elsewhere' }, searchLinks(settings.country, { role: settings.roles[0] ?? '', location: settings.locations[0] ?? '' })
+        .map(l => h('a', { class: 'ui-btn ui-btn--sm', href: l.url, target: '_blank', rel: 'noopener noreferrer', dataset: { site: l.name } }, l.name))))
   }
 
   // ---------- scan ----------
@@ -318,7 +353,6 @@ export async function openDiscover(store, ctx) {
     render()
   }
 
-  const openPipeline = () => ctx.openPipeline ? ctx.openPipeline() : import('./pipeline-view.js').then(m => m.openPipeline(store, ctx))
 
   // ---------- feed ----------
   function attribution(p) {
@@ -394,12 +428,11 @@ export async function openDiscover(store, ctx) {
 
   const dialog = h('dialog', { class: 'board discover', 'aria-labelledby': titleId },
     h('header', { class: 'board-head' },
-      h('h1', { class: 'board-head__title', id: titleId }, t('discover.title')),
-      h('span', { class: 'ui-muted' }, t('discover.intro')),
+      h('h1', { class: 'visually-hidden', id: titleId }, t('discover.title')),
+      hubNav(ctx, 'discover'),
+      h('span', { class: 'ui-muted board-head__intro' }, t('discover.intro')),
       h('span', { class: 'ui-spacer' }),
-      h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'discover-pipeline' }, onClick: openPipeline }, t('discover.pipeline')),
-      h('button', { class: 'ui-btn ui-btn--sm', type: 'button', onClick: () => ctx.openProfileDialog?.() }, t('cmd.app.profile')),
-      h('button', { class: 'ui-btn ui-btn--sm ui-btn--primary', type: 'button', dataset: { action: 'discover-close' }, onClick: () => close() }, t('board.close'))),
+      h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'discover-close' }, onClick: () => close() }, t('board.close'))),
     h('div', { class: 'discover-body' }, settingsCol, h('section', { class: 'dc-main', 'aria-label': t('discover.results') }, bar, errorBox, feed)),
     live)
   dialog.addEventListener('close', () => { scanning?.abort(); finder.busy?.abort() }, { once: true })

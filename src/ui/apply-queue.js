@@ -237,6 +237,14 @@ export function openApplyQueue(store, ctx, { jobIds = [], tracker = ctx.tracker 
         const next = trackerUpdate(tracker.get(j.id), j, new Date())
         if (next) tracker.save(next)
       }
+      // answers the user typed into the employer's form join the profile's bank (the bridge keeps them in order)
+      const learned = (s.run.learned ?? []).slice(s.learned ?? 0)
+      if (learned.length) {
+        s.learned = (s.learned ?? 0) + learned.length
+        const profile = loadProfile()
+        saveProfile({ ...profile, answers: learned.reduce((b, x) => bankRemember(b, x, new Date()), profile.answers) })
+        ctx.toast?.(t('applyq.learned', { count: learned.length }))
+      }
       if (!s.run.running) s.step = 'done'
     } catch (err) {
       s.error = t('applyq.lost', { error: err.message })

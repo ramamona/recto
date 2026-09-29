@@ -1,5 +1,6 @@
 // Top bar (spec 5.3): document switcher, file open/save, import/export, templates, undo/redo,
 // ATS / job score chips, save status and the light/dark toggle. Returns the actions main.js binds to shortcuts.
+import { hubNav } from './hub-nav.js'
 import { h, uid } from './dom.js'
 import { openFile, saveFile, download, fontsToBase64, base64ToBlob } from '../io/files.js'
 import { loadFonts, saveFont, registerFonts } from '../io/storage.js'
@@ -260,9 +261,11 @@ export function mountTopbar(root, store, ctx) {
   const matchChip = chip('match-chip', 'job')
   const starChip = chip('score-chip', 'job')
   const status = h('span', { class: 'app-status ui-muted' })
-  const jobsBtn = btn('jobs', t('jobs.button'), () => ctx.openJobsDialog?.())
-  const discoverBtn = btn('discover', t('discover.button'), () => ctx.openDiscover?.())
-  const profileBtn = btn('profile', t('profile.button'), () => ctx.openProfileDialog?.())
+  const [fileBtn, fileMenu] = menu(t('app.file'), () => [
+    { text: t('app.open'), action: 'open', kbd: t('app.kbd.open'), run: open },
+    { text: t('app.save'), action: 'save', kbd: t('app.kbd.save'), run: () => save() },
+    { text: t('app.saveAs'), action: 'save-as', run: () => save(true) },
+  ])
   const aiBtn = btn('ai', '', () => ctx.openAiDialog?.(), { class: 'ui-btn ui-btn--ghost app-ai' })
   const aiLabel = () => {
     aiBtn.textContent = aiBtn.title = ctx.ai?.label() ?? t('ai.button')
@@ -275,15 +278,14 @@ export function mountTopbar(root, store, ctx) {
     h('span', { class: 'app-brand' }, 'Recto'),
     docBtn, docMenu,
     h('span', { class: 'ui-sep' }),
-    btn('open', t('app.open'), open),
-    btn('save', t('app.save'), () => save()),
-    btn('save-as', t('app.saveAs'), () => save(true)),
-    importBtn, importMenu, exportBtn, exportMenu,
+    fileBtn, fileMenu, importBtn, importMenu, exportBtn, exportMenu,
     btn('templates', t('app.templates'), showTemplates),
     h('span', { class: 'ui-sep' }),
     undo, redo,
     h('span', { class: 'ui-spacer' }),
-    profileBtn, discoverBtn, jobsBtn, aiBtn,
+    hubNav(ctx, 'cv'),
+    h('span', { class: 'ui-spacer' }),
+    aiBtn,
     h('span', { class: 'ui-sep' }),
     atsChip, matchChip, starChip, status, themeBtn,
   )

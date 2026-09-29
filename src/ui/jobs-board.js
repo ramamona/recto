@@ -1,6 +1,7 @@
 // Jobs board (review-jobs spec §5): full-screen kanban over the tracker, detail drawer, search, export/import.
 // Career suite (spec §7): the drawer is a per-job workspace with tabs (job-workspace.js); cards carry an overdue
 // follow-up badge and a selection checkbox for Compare and Apply to selected; the header adds Apply to all saved and Insights.
+import { hubNav } from './hub-nav.js'
 import { h, uid } from './dom.js'
 import { ask } from './topbar.js'
 import { STATUSES, staleApplied } from '../jobs/tracker.js'
@@ -275,14 +276,13 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
   const applyAllBtn = headBtn('board-apply-saved', () => ctx.openApplyQueue?.({ jobIds: savedIds(tracker.list()) }), t('board.applySaved'))
   const dialog = h('dialog', { class: 'board', 'aria-labelledby': titleId },
     h('header', { class: 'board-head' },
-      h('h1', { class: 'board-head__title', id: titleId }, t('jobs.title')), counts, search,
+      h('h1', { class: 'visually-hidden', id: titleId }, t('jobs.title')), hubNav(ctx, 'jobs'), counts, search,
       h('span', { class: 'ui-spacer' }),
       compareBtn,
       ctx.openApplyQueue && [applySelBtn, applyAllBtn],
-      typeof ctx.openInsights === 'function' && headBtn('board-insights', () => ctx.openInsights?.(), t('board.insights')),
       h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-import' }, onClick: importJobs }, t('jobs.import')),
       h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-export' }, onClick: exportJobs }, t('jobs.export')),
-      h('button', { class: 'ui-btn ui-btn--sm ui-btn--primary', type: 'button', dataset: { action: 'board-close' }, onClick: () => close() }, t('board.close'))),
+      h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'board-close' }, onClick: () => close() }, t('board.close'))),
     h('p', { class: 'board-hint ui-muted' }, t('board.hint')),
     h('div', { class: 'board-body' }, columns, drawer),
     live)
