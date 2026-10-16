@@ -4,6 +4,7 @@ import { migrateFile } from './model/layout.js'
 import { parse } from './model/markdown.js'
 import { applyTemplate, loadTemplates } from './model/templates.js'
 import { createPagesHost, layoutPages, paintViolations } from './render/pages.js'
+import { takeGmailToken } from './jobs/gmail.js'
 
 const params = new URLSearchParams(location.search)
 if (params.has('print')) window.rectoReady = printMode(params)
@@ -93,6 +94,9 @@ async function appMode() {
   // OpenRouter sign-in returns with ?code=: drop it from the URL (and history) before anything else
   const oauth = aiDialog.takeOAuthCode(location.href)
   if (oauth) history.replaceState(history.state, '', oauth.url)
+  // Gmail (optional) returns with #access_token: keep the token for this tab, drop it from the URL
+  const gmail = takeGmailToken(location.href)
+  if (gmail) history.replaceState(history.state, '', gmail.url)
   const { t } = i18n
   const { h, $, $$, on, clamp, isMod, isTyping } = dom
   await i18n.loadLocale(navigator.language)

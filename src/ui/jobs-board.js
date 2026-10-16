@@ -6,6 +6,8 @@ import { h, uid } from './dom.js'
 import { ask } from './topbar.js'
 import { STATUSES, staleApplied } from '../jobs/tracker.js'
 import { followUpsDue } from '../jobs/insights.js'
+import { isLinkedInApplications, linkedinApplications } from '../jobs/linkedin.js'
+import { GMAIL_CONFIG_KEY, gmailAuthUrl, gmailToken, gmailSignOut, scanGmail, suggestStatuses } from '../jobs/gmail.js'
 import { openFile, download } from '../io/files.js'
 import { createWorkspace } from './job-workspace.js'
 import { openCompare } from './compare-view.js'
@@ -253,9 +255,10 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
   // ---------- export / import ----------
   async function importJobs() {
     try {
-      const f = await openFile({ accept: '.json' })
+      const f = await openFile({ accept: '.json,.csv' })
       if (!f) return
-      const { added, warnings } = tracker.import(f.text)
+      // Optional LinkedIn import: the user's own "Job Applications.csv" from their LinkedIn data download
+      const { added, warnings } = isLinkedInApplications(f.text) ? tracker.import(linkedinApplications(f.text)) : tracker.import(f.text)
       render()
       ctx.toast([t('jobs.imported', { count: added }), ...warnings.slice(0, 3).map(w => t(`jobs.import.${w.code}`, { n: (w.index ?? 0) + 1 }))].join(' '))
     } catch (err) {
@@ -274,16 +277,63 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
   const applySelBtn = headBtn('board-apply-selected', () => ctx.openApplyQueue?.({ jobIds: savedIds(tracker.list(), selected) }))
   applySelBtn.title = t('board.applySelected.hint')
   const applyAllBtn = headBtn('board-apply-saved', () => ctx.openApplyQueue?.({ jobIds: savedIds(tracker.list()) }), t('board.applySaved'))
+  // ---------- Gmail (optional): read-only, suggestions only, the user applies each one ----------
+  let suggestions = null
+  const gmailBox = h('div', { class: 'board-gmail' })
+  const clientId = () => { try { return JSON.parse(globalThis.localStorage?.getItem(GMAIL_CONFIG_KEY) ?? 'null')?.clientId ?? '' } catch { return '' } }
+  const saveClientId = v => { try { globalThis.localStorage?.setItem(GMAIL_CONFIG_KEY, JSON.stringify({ clientId: v })) } catch { /* site data blocked: asked again next time */ } }
+
+  function renderGmail() {
+    const id = clientId()
+    const row = []
+    if (!id) {
+      const input = h('input', { class: 'ui-input', type: 'text', placeholder: t('gmail.clientId'), 'aria-label': t('gmail.clientId'), autocomplete: 'off', spellcheck: false })
+      row.push(input, h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'gmail-save' },
+        onClick: () => { if (input.value.trim()) { saveClientId(input.value.trim()); renderGmail() } } }, t('gmail.save')))
+    } else if (!gmailToken()) {
+      row.push(h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'gmail-connect' },
+        onClick: () => location.assign(gmailAuthUrl({ clientId: id, redirectUri: location.origin + location.pathname })) }, t('gmail.connect')))
+    } else {
+      row.push(h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'gmail-scan' }, onClick: scanGmailNow }, t('gmail.scan')),
+        h('button', { class: 'ui-btn ui-btn--sm ui-btn--ghost', type: 'button', dataset: { action: 'gmail-disconnect' },
+          onClick: () => { gmailSignOut(); suggestions = null; renderGmail() } }, t('gmail.disconnect')))
+    }
+    row.push(h('span', { class: 'ui-muted' }, t('gmail.hint')))
+    const items = suggestions && (suggestions.length
+      ? suggestions.map(s => h('li', {}, `${s.company} · ${s.title}: ${t(`jobs.status.${s.status}`)} `,
+        h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'gmail-apply' }, onClick: () => applySuggestion(s) }, t('gmail.apply'))))
+      : [h('li', { class: 'ui-muted' }, t('gmail.none'))])
+    gmailBox.replaceChildren(h('div', { class: 'board-gmail-row' }, row), items && h('ul', { class: 'board-gmail-list' }, items))
+  }
+
+  async function scanGmailNow() {
+    try {
+      suggestions = suggestStatuses(await scanGmail({ token: gmailToken() }), tracker.list())
+    } catch (err) {
+      console.error(err)
+      if (err.status === 401 || err.status === 403) gmailSignOut()
+      ctx.toast(t('gmail.failed'))
+    }
+    renderGmail()
+  }
+
+  function applySuggestion(s) {
+    move(s.jobId, s.status)
+    suggestions = suggestions.filter(x => x !== s)
+    renderGmail()
+  }
+
   const dialog = h('dialog', { class: 'board', 'aria-labelledby': titleId },
     h('header', { class: 'board-head' },
       h('h1', { class: 'visually-hidden', id: titleId }, t('jobs.title')), hubNav(ctx, 'jobs'), counts, search,
       h('span', { class: 'ui-spacer' }),
       compareBtn,
       ctx.openApplyQueue && [applySelBtn, applyAllBtn],
-      h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-import' }, onClick: importJobs }, t('jobs.import')),
+      h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-import' }, title: t('jobs.import.hint'), onClick: importJobs }, t('jobs.import')),
       h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'jobs-export' }, onClick: exportJobs }, t('jobs.export')),
       h('button', { class: 'ui-btn ui-btn--sm', type: 'button', dataset: { action: 'board-close' }, onClick: () => close() }, t('board.close'))),
     h('p', { class: 'board-hint ui-muted' }, t('board.hint')),
+    gmailBox,
     h('div', { class: 'board-body' }, columns, drawer),
     live)
   // Esc closes the drawer first, then the board (keydown too: Chrome ignores cancel's preventDefault without user activation)
@@ -292,6 +342,7 @@ export function openJobsBoard(store, ctx, { tracker = ctx.tracker, now = () => n
   dialog.addEventListener('cancel', escDrawer)
   dialog.addEventListener('close', () => ws?.abort(), { once: true })
   render()
+  renderGmail()
   const close = ctx.openDialog(dialog)
   search.focus()
   return close
